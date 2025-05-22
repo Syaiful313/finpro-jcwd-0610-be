@@ -1,0 +1,33 @@
+services:
+  postgres:
+    image: postgres
+    container_name: postgres_container
+    restart: always
+    environment:
+      - POSTGRES_PASSWORD=admin
+    volumes:
+      - ./docker/postgres:/var/lib/postgresql/data
+    ports:
+      - "6543:5432"
+    networks:
+      - express-network
+
+  postgres_testing:
+    image: postgres
+    container_name: postgres_testing
+    restart: always
+    environment:
+      - POSTGRES_PASSWORD=admin
+    ports:
+      - "7654:5432"
+
+  mailhog:
+    image: mailhog/mailhog
+    container_name: mailhog
+    restart: always
+    ports:
+      - 1025:1025
+      - 8025:8025
+
+networks:
+  express-network:
