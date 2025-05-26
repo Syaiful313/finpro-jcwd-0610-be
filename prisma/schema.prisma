@@ -7,29 +7,308 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model Sample {
-  id        Int       @id @default(autoincrement())
-  name      String
-  deletedAt DateTime?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+enum Role {
+  ADMIN
+  OUTLET_ADMIN
+  CUSTOMER
+  WORKER_WASHING
+  WORKER_IRONING
+  WORKER_PACKING
+  DRIVER
+}
 
-  @@map("samples")
+enum Provider {
+  GOOGLE
+  CREDENTIAL
+}
+
+enum DriverTaskStatus {
+  PENDING
+  ASSIGNED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum WorkerTypes {
+  WASHING
+  IRONING
+  PACKING
+}
+
+enum OrderStatus {
+  MENUNGGU_PENJEMPUTAN_DRIVER
+  DRIVER_MENUJU_OUTLET
+  TELAH_SAMPAI_OUTLET
+  SEDANG_DICUCI
+  SEDANG_DISETRIKA
+  SEDANG_DIPACKING
+  WAITING_PAYMENT
+  SIAP_DIANTAR
+  SEDANG_DIKIRIM_MENUJU_CUSTOMER
+  DITERIMA_CUSTOMER
+  IN_RESOLUTION
+  COMPLETED
+}
+
+enum NotifType {
+  NEW_PICKUP_REQUEST
+  NEW_DELIVERY_REQUEST
+  REQUEST_PICKUP_CANCELLED
+  ORDER_COMPLETED
+  BYPASS_REQUEST
+  BYPASS_APPROVED
+  BYPASS_REJECTED
+}
+
+enum BypassStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum PaymentStatus {
+  WAITING_PAYMENT
+  PAID
 }
 
 model User {
-  id        Int       @id @default(autoincrement())
-  email     String    @unique
-  password  String
-  role      Role      @default(USER)
-  deletedAt DateTime?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  id             Int       @id @default(autoincrement())
+  firstName      String
+  lastName       String
+  email          String    @unique
+  password       String
+  role           Role      @default(CUSTOMER)
+  phoneNumber    Int       @unique
+  profilePic     String
+  isVerified     Boolean
+  provider       Provider
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+  notificationId Int?      @unique
+
+  Employee     Employee[]
+  Addresses    Address[]
+  Notification Notification? @relation(fields: [notificationId], references: [id])
+  orders       Order[]
 
   @@map("users")
 }
 
-enum Role {
-  USER
-  ADMIN
+model Notification {
+  id          Int          @id @default(autoincrement())
+  message     String
+  orderStatus OrderStatus?
+  notifType   NotifType
+  isRead      Boolean      @default(false)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime
+
+  user   User?
+  orders Order[]
+
+  @@map("notifications")
+}
+
+model Employee {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])
+  outletId  Int
+  npwp      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  outlet           Outlet             @relation(fields: [outletId], references: [id])
+  Attandence       Attandence[]
+  PickUpJobs       PickUpJob[]
+  DeliveryJobs     DeliveryJob[]
+  OrderWorkProcess OrderWorkProcess[]
+  BypassRequests   BypassRequest[]
+
+  @@map("employees")
+}
+
+model Attandence {
+  id         Int       @id @default(autoincrement())
+  employeeId Int
+  employee   Employee  @relation(fields: [employeeId], references: [id])
+  outletId   Int
+  outlet     Outlet    @relation(fields: [outletId], references: [id])
+  clockInAt  DateTime? @default(now())
+  clockOutAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@map("attandence")
+}
+
+model PickUpJob {
+  id                   Int              @id @default(autoincrement())
+  employeeId           Int
+  employee             Employee         @relation(fields: [employeeId], references: [id])
+  orderId              String
+  order                Order            @relation(fields: [orderId], references: [uuid])
+  pickUpPhotos         String?
+  pickUpScheduleOutlet String
+  notes                String?
+  status               DriverTaskStatus @default(PENDING)
+  updatedAt            DateTime         @updatedAt
+  createdAt            DateTime         @default(now())
+
+  @@map("pickUpJob")
+}
+
+model DeliveryJob {
+  id             Int              @id @default(autoincrement())
+  employeeId     Int
+  employee       Employee         @relation(fields: [employeeId], references: [id])
+  orderId        String
+  order          Order            @relation(fields: [orderId], references: [uuid])
+  deliveryPhotos String?
+  notes          String?
+  status         DriverTaskStatus @default(PENDING)
+  updatedAt      DateTime         @updatedAt
+  createdAt      DateTime         @default(now())
+
+  @@map("deliveryJob")
+}
+
+model Address {
+  id          Int      @id @default(autoincrement())
+  userId      Int
+  addressName String
+  addressLine String
+  district    String
+  city        String
+  province    String
+  postalCode  String
+  latitude    Float
+  longitude   Float
+  isPrimary   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("address")
+}
+
+model OrderWorkProcess {
+  id          Int         @id @default(autoincrement())
+  employeeId  Int
+  orderId     String
+  bypassId    Int?
+  workerType  WorkerTypes
+  notes       String?
+  completedAt DateTime?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  employee Employee       @relation(fields: [employeeId], references: [id])
+  order    Order          @relation(fields: [orderId], references: [uuid])
+  bypass   BypassRequest? @relation(fields: [bypassId], references: [id])
+
+  @@map("orderWorkProcess")
+}
+
+model BypassRequest {
+  id                 Int          @id @default(autoincrement())
+  orderWorkProcessId Int
+  approvedBy         Int
+  reason             String
+  adminNote          String?
+  bypassStatus       BypassStatus @default(PENDING)
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  orderWorkProcess   OrderWorkProcess[]
+  approvedByEmployee Employee           @relation(fields: [approvedBy], references: [id])
+
+  @@map("bypassRequest")
+}
+
+model Outlet {
+  id            Int      @id @default(autoincrement())
+  outletName    String
+  address       String
+  latitude      Float
+  longitude     Float
+  serviceRadius Float
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  employees  Employee[]
+  orders     Order[]
+  Attandence Attandence[]
+
+  @@map("outlet")
+}
+
+model Order {
+  uuid                  String        @id @default(uuid())
+  userId                Int
+  user                  User          @relation(fields: [userId], references: [id])
+  outletId              Int
+  address_line          String
+  district              String
+  city                  String
+  province              String
+  postalCode            String
+  orderNumber           String
+  orderStatus           OrderStatus
+  scheduledPickupTime   DateTime?
+  actualPickupTime      DateTime?
+  scheduledDeliveryTime DateTime?
+  actualDeliveryTime    DateTime?
+  totalDeliveryFee      Float
+  totalWeight           Float
+  totalPrice            Float
+  paymentStatus         PaymentStatus @default(WAITING_PAYMENT)
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+  notificationId        Int?
+
+  orderItems       OrderItem[]
+  PickUpJobs       PickUpJob[]
+  DeliveryJobs     DeliveryJob[]
+  Notification     Notification?      @relation(fields: [notificationId], references: [id])
+  OrderWorkProcess OrderWorkProcess[]
+  Outlet           Outlet             @relation(fields: [outletId], references: [id])
+
+  @@map("order")
+}
+
+model OrderItem {
+  id              Int      @id @default(autoincrement())
+  orderId         String
+  itemId          String
+  laundryCategory String
+  color           String
+  brand           String
+  materials       String
+  price           Float
+  weight          Float
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  order   Order             @relation(fields: [orderId], references: [uuid])
+  details OrderItemDetail[]
+
+  @@map("orderItem")
+}
+
+model OrderItemDetail {
+  id          Int      @id @default(autoincrement())
+  orderItemId Int
+  name        String
+  qty         Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  orderItem OrderItem @relation(fields: [orderItemId], references: [id])
+
+  @@map("orderItemDetail")
 }
