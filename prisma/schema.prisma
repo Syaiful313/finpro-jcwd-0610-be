@@ -8,6 +8,16 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model Sample {
+  id        Int       @id @default(autoincrement())
+  name      String
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@map("samples")
+}
+
 model User {
   id                     Int       @id @default(autoincrement())
   firstName              String
