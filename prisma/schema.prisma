@@ -7,6 +7,40 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model Sample {
+  id        Int       @id @default(autoincrement())
+  name      String
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@map("samples")
+}
+
+model User {
+  id             Int           @id @default(autoincrement())
+  firstName      String
+  lastName       String
+  email          String        @unique
+  password       String
+  role           Role          @default(CUSTOMER)
+  phoneNumber    Int           @unique
+  profilePic     String
+  isVerified     Boolean
+  provider       Provider
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  deletedAt      DateTime?
+  notificationId Int?          @unique
+  notification   Notification? @relation(fields: [notificationId], references: [id])
+
+  employees Employee[]
+  addresses Address[]
+  orders    Order[]
+
+  @@map("users")
+}
+
 enum Role {
   ADMIN
   OUTLET_ADMIN
@@ -22,33 +56,19 @@ enum Provider {
   CREDENTIAL
 }
 
-enum DriverTaskStatus {
-  PENDING
-  ASSIGNED
-  IN_PROGRESS
-  COMPLETED
-  CANCELLED
-}
+model Notification {
+  id          Int          @id @default(autoincrement())
+  message     String
+  orderStatus OrderStatus?
+  notifType   NotifType
+  isRead      Boolean      @default(false)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime
 
-enum WorkerTypes {
-  WASHING
-  IRONING
-  PACKING
-}
+  users  User[]
+  orders Order[]
 
-enum OrderStatus {
-  MENUNGGU_PENJEMPUTAN_DRIVER
-  DRIVER_MENUJU_OUTLET
-  TELAH_SAMPAI_OUTLET
-  SEDANG_DICUCI
-  SEDANG_DISETRIKA
-  SEDANG_DIPACKING
-  WAITING_PAYMENT
-  SIAP_DIANTAR
-  SEDANG_DIKIRIM_MENUJU_CUSTOMER
-  DITERIMA_CUSTOMER
-  IN_RESOLUTION
-  COMPLETED
+  @@map("notifications")
 }
 
 enum NotifType {
@@ -61,71 +81,21 @@ enum NotifType {
   BYPASS_REJECTED
 }
 
-enum BypassStatus {
-  PENDING
-  APPROVED
-  REJECTED
-}
-
-enum PaymentStatus {
-  WAITING_PAYMENT
-  PAID
-}
-
-model User {
-  id             Int       @id @default(autoincrement())
-  firstName      String
-  lastName       String
-  email          String    @unique
-  password       String
-  role           Role      @default(CUSTOMER)
-  phoneNumber    Int       @unique
-  profilePic     String
-  isVerified     Boolean
-  provider       Provider
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
-  deletedAt      DateTime?
-  notificationId Int?      @unique
-
-  Employee     Employee[]
-  Addresses    Address[]
-  Notification Notification? @relation(fields: [notificationId], references: [id])
-  orders       Order[]
-
-  @@map("users")
-}
-
-model Notification {
-  id          Int          @id @default(autoincrement())
-  message     String
-  orderStatus OrderStatus?
-  notifType   NotifType
-  isRead      Boolean      @default(false)
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime
-
-  user   User?
-  orders Order[]
-
-  @@map("notifications")
-}
-
 model Employee {
   id        Int      @id @default(autoincrement())
   userId    Int
   user      User     @relation(fields: [userId], references: [id])
   outletId  Int
+  outlet    Outlet   @relation(fields: [outletId], references: [id])
   npwp      String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  outlet           Outlet             @relation(fields: [outletId], references: [id])
-  Attandence       Attandence[]
-  PickUpJobs       PickUpJob[]
-  DeliveryJobs     DeliveryJob[]
-  OrderWorkProcess OrderWorkProcess[]
-  BypassRequests   BypassRequest[]
+  attendances      Attandence[]
+  pickUpJobs       PickUpJob[]
+  deliveryJobs     DeliveryJob[]
+  orderWorkProcess OrderWorkProcess[]
+  bypassRequests   BypassRequest[]
 
   @@map("employees")
 }
@@ -141,7 +111,7 @@ model Attandence {
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
 
-  @@map("attandence")
+  @@map("attendances")
 }
 
 model PickUpJob {
@@ -157,7 +127,15 @@ model PickUpJob {
   updatedAt            DateTime         @updatedAt
   createdAt            DateTime         @default(now())
 
-  @@map("pickUpJob")
+  @@map("pickUpJobs")
+}
+
+enum DriverTaskStatus {
+  PENDING
+  ASSIGNED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
 }
 
 model DeliveryJob {
@@ -172,12 +150,13 @@ model DeliveryJob {
   updatedAt      DateTime         @updatedAt
   createdAt      DateTime         @default(now())
 
-  @@map("deliveryJob")
+  @@map("deliveryJobs")
 }
 
 model Address {
   id          Int      @id @default(autoincrement())
   userId      Int
+  user        User     @relation(fields: [userId], references: [id])
   addressName String
   addressLine String
   district    String
@@ -190,43 +169,51 @@ model Address {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  user User @relation(fields: [userId], references: [id])
-
-  @@map("address")
+  @@map("addresses")
 }
 
 model OrderWorkProcess {
-  id          Int         @id @default(autoincrement())
+  id          Int            @id @default(autoincrement())
   employeeId  Int
+  employee    Employee       @relation(fields: [employeeId], references: [id])
   orderId     String
+  order       Order          @relation(fields: [orderId], references: [uuid])
   bypassId    Int?
+  bypass      BypassRequest? @relation(fields: [bypassId], references: [id])
   workerType  WorkerTypes
   notes       String?
   completedAt DateTime?
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
 
-  employee Employee       @relation(fields: [employeeId], references: [id])
-  order    Order          @relation(fields: [orderId], references: [uuid])
-  bypass   BypassRequest? @relation(fields: [bypassId], references: [id])
+  @@map("orderWorkProcesses")
+}
 
-  @@map("orderWorkProcess")
+enum WorkerTypes {
+  WASHING
+  IRONING
+  PACKING
 }
 
 model BypassRequest {
   id                 Int          @id @default(autoincrement())
-  orderWorkProcessId Int
   approvedBy         Int
+  approvedByEmployee Employee     @relation(fields: [approvedBy], references: [id])
   reason             String
   adminNote          String?
   bypassStatus       BypassStatus @default(PENDING)
   createdAt          DateTime     @default(now())
   updatedAt          DateTime     @updatedAt
 
-  orderWorkProcess   OrderWorkProcess[]
-  approvedByEmployee Employee           @relation(fields: [approvedBy], references: [id])
+  orderWorkProcesses OrderWorkProcess[]
 
-  @@map("bypassRequest")
+  @@map("bypassRequests")
+}
+
+enum BypassStatus {
+  PENDING
+  APPROVED
+  REJECTED
 }
 
 model Outlet {
@@ -240,11 +227,11 @@ model Outlet {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  employees  Employee[]
-  orders     Order[]
-  Attandence Attandence[]
+  employees   Employee[]
+  orders      Order[]
+  attendances Attandence[]
 
-  @@map("outlet")
+  @@map("outlets")
 }
 
 model Order {
@@ -252,6 +239,9 @@ model Order {
   userId                Int
   user                  User          @relation(fields: [userId], references: [id])
   outletId              Int
+  outlet                Outlet        @relation(fields: [outletId], references: [id])
+  notificationId        Int?
+  notification          Notification? @relation(fields: [notificationId], references: [id])
   address_line          String
   district              String
   city                  String
@@ -269,21 +259,41 @@ model Order {
   paymentStatus         PaymentStatus @default(WAITING_PAYMENT)
   createdAt             DateTime      @default(now())
   updatedAt             DateTime      @updatedAt
-  notificationId        Int?
 
   orderItems       OrderItem[]
-  PickUpJobs       PickUpJob[]
-  DeliveryJobs     DeliveryJob[]
-  Notification     Notification?      @relation(fields: [notificationId], references: [id])
-  OrderWorkProcess OrderWorkProcess[]
-  Outlet           Outlet             @relation(fields: [outletId], references: [id])
+  pickUpJobs       PickUpJob[]
+  deliveryJobs     DeliveryJob[]
+  orderWorkProcess OrderWorkProcess[]
 
-  @@map("order")
+  @@map("orders")
+}
+
+enum OrderStatus {
+  WAITING_FOR_PICKUP
+  DRIVER_ON_THE_WAY_TO_CUSTOMER
+  ARRIVED_AT_CUSTOMER
+  DRIVER_ON_THE_WAY_TO_OUTLET
+  ARRIVED_AT_OUTLET
+  BEING_WASHED
+  BEING_IRONED
+  BEING_PACKED
+  WAITING_PAYMENT
+  READY_FOR_DELIVERY
+  BEING_DELIVERED_TO_CUSTOMER
+  DELIVERED_TO_CUSTOMER
+  IN_RESOLUTION
+  COMPLETED
+}
+
+enum PaymentStatus {
+  WAITING_PAYMENT
+  PAID
 }
 
 model OrderItem {
   id              Int      @id @default(autoincrement())
   orderId         String
+  order           Order    @relation(fields: [orderId], references: [uuid])
   itemId          String
   laundryCategory String
   color           String
@@ -294,21 +304,19 @@ model OrderItem {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  order   Order             @relation(fields: [orderId], references: [uuid])
   details OrderItemDetail[]
 
-  @@map("orderItem")
+  @@map("orderItems")
 }
 
 model OrderItemDetail {
-  id          Int      @id @default(autoincrement())
+  id          Int       @id @default(autoincrement())
   orderItemId Int
+  orderItem   OrderItem @relation(fields: [orderItemId], references: [id])
   name        String
   qty         Int
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
-  orderItem OrderItem @relation(fields: [orderItemId], references: [id])
-
-  @@map("orderItemDetail")
+  @@map("orderItemDetails")
 }
