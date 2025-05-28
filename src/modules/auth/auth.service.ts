@@ -50,7 +50,7 @@ export class AuthService {
   };
 
   register = async (body: RegisterDTO) => {
-    const { email, password } = body;
+    const { firstName, lastName, email, password } = body;
 
     const existingUser = await this.prisma.user.findFirst({
       where: { email },
@@ -64,6 +64,8 @@ export class AuthService {
 
     return await this.prisma.user.create({
       data: {
+        firstName,
+        lastName,
         email,
         password: hashedPassword,
       },
