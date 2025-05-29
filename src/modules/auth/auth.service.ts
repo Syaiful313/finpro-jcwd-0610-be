@@ -36,17 +36,40 @@ export class AuthService {
       throw new ApiError("Invalid credentials", 400);
     }
 
+    let outletId: number | undefined;
+
+    if (existingUser.role === "OUTLET_ADMIN") {
+      const employee = await this.prisma.employee.findFirst({
+        where: {
+          userId: existingUser.id,
+        },
+        select: { outletId: true },
+      });
+
+      outletId = employee?.outletId;
+    }
+
+    const tokenPayload: any = {
+      id: existingUser.id,
+      role: existingUser.role,
+    };
+
+    if (outletId) {
+      tokenPayload.outletId = outletId;
+    }
+
     const accessToken = this.tokenService.generateToken(
-      {
-        id: existingUser.id,
-        role: existingUser.role,
-      },
+      tokenPayload,
       env().JWT_SECRET,
     );
 
     const { password: pw, ...userWithoutPassword } = existingUser;
 
-    return { ...userWithoutPassword, accessToken };
+    return {
+      ...userWithoutPassword,
+      accessToken,
+      ...(outletId && { outletId }),
+    };
   };
 
   register = async (body: RegisterDTO) => {
