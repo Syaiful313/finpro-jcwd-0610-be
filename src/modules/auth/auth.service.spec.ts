@@ -78,6 +78,8 @@ describe("SampleService", () => {
       });
 
       const result = await authService.register({
+        firstName: user.firstName,
+        lastName: user.lastName,
         email: user.email,
         password: user.password,
       });
@@ -92,7 +94,12 @@ describe("SampleService", () => {
 
       mockCtx.prisma.user.findFirst.mockResolvedValueOnce(user);
 
-      const body = { email: user.email, password: "PlainPassword123" };
+      const body = {
+        email: user.email,
+        password: "PlainPassword123",
+        firstName: user.firstName,
+        lastName: user.lastName,
+      };
 
       expect(authService.register(body)).rejects.toThrow("Email already exist");
     });

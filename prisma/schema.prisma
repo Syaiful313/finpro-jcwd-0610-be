@@ -24,10 +24,10 @@ model User {
   email          String        @unique
   password       String
   role           Role          @default(CUSTOMER)
-  phoneNumber    Int           @unique
-  profilePic     String
-  isVerified     Boolean
-  provider       Provider
+  phoneNumber    Int?          @unique
+  profilePic     String?
+  isVerified     Boolean       @default(false)
+  provider       Provider      @default(CREDENTIAL)
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
   deletedAt      DateTime?
@@ -91,7 +91,7 @@ model Employee {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  attendances      Attandence[]
+  attendances      Attendance[]
   pickUpJobs       PickUpJob[]
   deliveryJobs     DeliveryJob[]
   orderWorkProcess OrderWorkProcess[]
@@ -100,7 +100,7 @@ model Employee {
   @@map("employees")
 }
 
-model Attandence {
+model Attendance {
   id         Int       @id @default(autoincrement())
   employeeId Int
   employee   Employee  @relation(fields: [employeeId], references: [id])
@@ -229,7 +229,7 @@ model Outlet {
 
   employees   Employee[]
   orders      Order[]
-  attendances Attandence[]
+  attendances Attendance[]
 
   @@map("outlets")
 }
