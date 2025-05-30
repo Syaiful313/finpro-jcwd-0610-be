@@ -1,10 +1,10 @@
 import { Router } from "express";
 import { autoInjectable } from "tsyringe";
-import { AdminController } from "./admin.controller";
+import { env } from "../../config";
 import { JwtMiddleware } from "../../middleware/jwt.middleware";
 import { verifyRole } from "../../middleware/role.middleware";
-import { env } from "../../config";
 import { uploader } from "../../middleware/uploader.middleware";
+import { AdminController } from "./admin.controller";
 
 @autoInjectable()
 export class AdminRouter {

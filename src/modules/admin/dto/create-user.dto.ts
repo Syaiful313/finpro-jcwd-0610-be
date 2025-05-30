@@ -55,14 +55,23 @@ export class CreateUserDTO {
   @IsInt()
   readonly notificationId?: number;
 
-  @IsOptional()
-  @ValidateIf((o) => o.role === Role.WORKER || o.role === Role.DRIVER)
+  @ValidateIf(
+    (o) =>
+      o.role === Role.OUTLET_ADMIN ||
+      o.role === Role.WORKER ||
+      o.role === Role.DRIVER,
+  )
   @Transform(({ value }) => (value ? parseInt(value) : undefined))
   @IsInt({ message: "Outlet ID must be a valid integer" })
   readonly outletId?: number;
 
-  @ValidateIf((o) => o.role === Role.WORKER || o.role === Role.DRIVER)
-  @IsNotEmpty({ message: "NPWP is required for WORKER or DRIVER role" })
+  @ValidateIf(
+    (o) =>
+      o.role === Role.OUTLET_ADMIN ||
+      o.role === Role.WORKER ||
+      o.role === Role.DRIVER,
+  )
+  @IsNotEmpty({ message: "NPWP is required for employee roles" })
   @IsString()
   @Matches(/^[0-9]{15}$/, {
     message: "NPWP must be exactly 15 digits",

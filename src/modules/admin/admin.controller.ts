@@ -1,11 +1,11 @@
+import { Role } from "@prisma/client";
 import { plainToInstance } from "class-transformer";
 import { NextFunction, Request, Response } from "express";
 import { injectable } from "tsyringe";
-import { GetUsersDTO } from "./dto/get-users.dto";
+import { ApiError } from "../../utils/api-error";
 import { AdminService } from "./admin.service";
 import { CreateUserDTO } from "./dto/create-user.dto";
-import { Role } from "@prisma/client";
-import { ApiError } from "../../utils/api-error";
+import { GetUsersDTO } from "./dto/get-users.dto";
 import { UpdateUserDTO } from "./dto/update-user.dto";
 
 @injectable()
@@ -95,24 +95,22 @@ export class AdminController {
       next(error);
     }
   };
-  // ✅ UPDATED: Update User Controller
+
   updateUser = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const userId = Number(req.params.id);
       const body: UpdateUserDTO = req.body;
-      const profile = req.file; // Single file upload
+      const profile = req.file;
       const currentUser = req.user as {
         id: number;
         role: string;
         outletId?: number;
       };
 
-      // Validate userId parameter
       if (isNaN(userId) || userId <= 0) {
         throw new ApiError("Invalid user ID", 400);
       }
 
-      // Call service with all required parameters
       const result = await this.adminService.updateUser(userId, body, profile, {
         ...currentUser,
         role: currentUser.role as Role,
