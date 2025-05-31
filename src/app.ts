@@ -5,8 +5,10 @@ import "reflect-metadata";
 import { container } from "tsyringe";
 import { env } from "./config";
 import { errorMiddleware } from "./middleware/error.middleware";
+import { AdminRouter } from "./modules/admin/admin.router";
 import { AuthRouter } from "./modules/auth/auth.router";
 import { SampleRouter } from "./modules/sample/sample.router";
+import { OutletRouter } from "./modules/outlet/outlet.router";
 
 export default class App {
   public app;
@@ -27,12 +29,17 @@ export default class App {
   private routes(): void {
     const sampleRouter = container.resolve(SampleRouter);
     const authRouter = container.resolve(AuthRouter);
+    const adminRouter = container.resolve(AdminRouter);
+    const outletRouter = container.resolve(OutletRouter);
 
     this.app.get("/", (_, res) => {
       res.send("Welcome");
     });
     this.app.use("/samples", sampleRouter.getRouter());
     this.app.use("/auth", authRouter.getRouter());
+    this.app.use("/admin", adminRouter.getRouter());
+    this.app.use("/outlet", outletRouter.getRouter());
+
   }
 
   private handleError(): void {

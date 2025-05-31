@@ -1,5 +1,6 @@
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "darwin", "darwin-arm64"]
 }
 
 datasource db {
@@ -18,25 +19,26 @@ model Sample {
 }
 
 model User {
-  id             Int           @id @default(autoincrement())
-  firstName      String
-  lastName       String
-  email          String        @unique
-  password       String
-  role           Role          @default(CUSTOMER)
-  phoneNumber    Int?          @unique
-  profilePic     String?
-  isVerified     Boolean       @default(false)
-  provider       Provider      @default(CREDENTIAL)
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
-  deletedAt      DateTime?
-  notificationId Int?          @unique
-  notification   Notification? @relation(fields: [notificationId], references: [id])
+  id          Int       @id @default(autoincrement())
+  firstName   String
+  lastName    String
+  email       String    @unique
+  password    String
+  role        Role      @default(CUSTOMER)
+  phoneNumber String?   @unique
+  profilePic  String?
+  isVerified  Boolean   @default(false)
+  provider    Provider  @default(CREDENTIAL)
+  outletId    Int?
+  outlet      Outlet?   @relation(fields: [outletId], references: [id])
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
 
-  employees Employee[]
-  addresses Address[]
-  orders    Order[]
+  employees     Employee[]
+  addresses     Address[]
+  orders        Order[]
+  notifications Notification[]
 
   @@map("users")
 }
@@ -45,9 +47,7 @@ enum Role {
   ADMIN
   OUTLET_ADMIN
   CUSTOMER
-  WORKER_WASHING
-  WORKER_IRONING
-  WORKER_PACKING
+  WORKER
   DRIVER
 }
 
@@ -58,6 +58,8 @@ enum Provider {
 
 model Notification {
   id          Int          @id @default(autoincrement())
+  userId      Int          @unique
+  user        User         @relation(fields: [userId], references: [id])
   message     String
   orderStatus OrderStatus?
   notifType   NotifType
@@ -65,7 +67,6 @@ model Notification {
   createdAt   DateTime     @default(now())
   updatedAt   DateTime
 
-  users  User[]
   orders Order[]
 
   @@map("notifications")
@@ -230,6 +231,7 @@ model Outlet {
   employees   Employee[]
   orders      Order[]
   attendances Attendance[]
+  users       User[]
 
   @@map("outlets")
 }
