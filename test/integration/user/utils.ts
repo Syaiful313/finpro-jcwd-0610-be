@@ -1,4 +1,4 @@
-import { Role, User } from "@prisma/client";
+import { Provider, Role, User } from "@prisma/client";
 
 export const mockUserData = ({
   numberOfUsers = 10,
@@ -10,12 +10,19 @@ export const mockUserData = ({
 
     return {
       id: userNumber,
+      firstName: "First" + userNumber,
+      lastName: "Last" + userNumber,
       email: "Email" + userNumber + "@mail.com",
       password: "Password" + userNumber,
-      role: Role.USER,
-      deletedAt: null,
+      role: Role.CUSTOMER,
+      phoneNumber: BigInt(1000000000 + userNumber), // example bigint phone number
+      profilePic: null,
+      isVerified: false,
+      provider: Provider.CREDENTIAL,
       createdAt: new Date(),
       updatedAt: new Date(),
+      deletedAt: null,
+      notificationId: null,
     };
   });
 
