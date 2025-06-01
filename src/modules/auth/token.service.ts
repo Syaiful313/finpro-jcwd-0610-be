@@ -11,4 +11,8 @@ export class TokenService {
       ...options,
     });
   };
+
+  verifyToken = (token: string, secretKey: string): object | string => {
+    return jwt.verify(token, secretKey);
+  };
 }

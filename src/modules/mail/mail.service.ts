@@ -56,7 +56,7 @@ export class MailService {
       const html = await this.renderTemplate(templateName, context);
 
       const mailOptions = {
-        from: `"Your App" <${env().MAIL_USER}>`,
+        from: `"Bubblify" <${env().MAIL_USER}>`,
         to,
         subject,
         html,
@@ -66,5 +66,21 @@ export class MailService {
     } catch (error) {
       throw "Error sending email";
     }
+  }
+
+  public async sendVerificationEmail(
+    to: string,
+    verificationLink: string,
+    userName?: string,
+  ): Promise<void> {
+    const subject = "Verify your Bubblify account";
+    const templateName = "verification-email";
+    const context = {
+      verificationLink,
+      userName,
+      currentYear: new Date().getFullYear(),
+    };
+
+    await this.sendEmail(to, subject, templateName, context);
   }
 }

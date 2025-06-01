@@ -3,6 +3,7 @@ import { mockUserData } from "../../../test/integration/user/utils";
 import { AuthService } from "./auth.service";
 import { PasswordService } from "./password.service";
 import { TokenService } from "./token.service";
+import { MailService } from "../mail/mail.service";
 
 describe("SampleService", () => {
   let mockCtx: MockContext;
@@ -10,13 +11,20 @@ describe("SampleService", () => {
   let passwordService: PasswordService;
   let tokenService: TokenService;
   let authService: AuthService;
+  let mailService: MailService;
 
   beforeEach(() => {
     mockCtx = createMockContext();
     ctx = mockCtx as unknown as Context;
     passwordService = new PasswordService();
     tokenService = new TokenService();
-    authService = new AuthService(ctx.prisma, passwordService, tokenService);
+    mailService = new MailService();
+    authService = new AuthService(
+      ctx.prisma,
+      passwordService,
+      tokenService,
+      mailService,
+    );
   });
 
   describe("login", () => {
@@ -81,7 +89,7 @@ describe("SampleService", () => {
         firstName: user.firstName,
         lastName: user.lastName,
         email: user.email,
-        password: user.password,
+        phoneNumber: user.phoneNumber?.toString(),
       });
 
       expect(result.id).toBe(user.id);
@@ -96,7 +104,7 @@ describe("SampleService", () => {
 
       const body = {
         email: user.email,
-        password: "PlainPassword123",
+        phoneNumber: user.phoneNumber?.toString(),
         firstName: user.firstName,
         lastName: user.lastName,
       };
