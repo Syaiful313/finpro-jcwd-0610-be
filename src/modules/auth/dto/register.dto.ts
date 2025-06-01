@@ -9,6 +9,11 @@ export class RegisterDTO {
   @IsString()
   readonly lastName!: string;
 
+  @IsOptional()
+  @IsString()
+  readonly phoneNumber?: string;
+
+
   @IsNotEmpty()
   @IsString()
   readonly email!: string;
@@ -16,4 +21,5 @@ export class RegisterDTO {
   @IsOptional()
   @IsString()
   readonly phoneNumber?: string;
+
 }
