@@ -92,6 +92,7 @@ model Employee {
   npwp      String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  deletedAt DateTime?
 
   attendances      Attendance[]
   pickUpJobs       PickUpJob[]
