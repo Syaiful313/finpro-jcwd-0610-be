@@ -4,6 +4,8 @@ import { validateBody } from "../../middleware/validation.middleware";
 import { AuthController } from "./auth.controller";
 import { LoginDTO } from "./dto/login.dto";
 import { RegisterDTO } from "./dto/register.dto";
+import { VerificationDTO } from "./dto/verification.dto";
+import { ResendEmailDTO } from "./dto/resendEmail.dto";
 
 @autoInjectable()
 export class AuthRouter {
@@ -23,6 +25,16 @@ export class AuthRouter {
       "/register",
       validateBody(RegisterDTO),
       this.authController.register,
+    );
+    this.router.post(
+      "/verify-email-and-set-password",
+      validateBody(VerificationDTO),
+      this.authController.verifyEmailAndSetPassword,
+    );
+    this.router.post(
+      "/resend-verification",
+      validateBody(ResendEmailDTO),
+      this.authController.resendEmailVerification,
     );
   };
 
