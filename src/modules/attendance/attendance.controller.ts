@@ -13,8 +13,8 @@ export class AttendanceController {
 
   clockIn = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const authEmployeeId = res.locals.user?.id;
-      const result = await this.attendanceService.clockIn(authEmployeeId);
+      const authUserId = req.user!.id;
+      const result = await this.attendanceService.clockIn(authUserId);
       res.status(200).send(result);
     } catch (error) {
       next(error);
@@ -31,47 +31,10 @@ export class AttendanceController {
     }
   };
 
-  getAttendanceHistory = async (
-    req: Request,
-    res: Response,
-    next: NextFunction,
-  ) => {
-    try {
-      const authEmployeeId = res.locals.user?.id;
-      const query = plainToInstance(GetAttendanceHistoryDTO, req.query);
-      const result = await this.attendanceService.getAttendanceHistory(
-        authEmployeeId,
-        query,
-      );
-      res.status(200).send(result);
-    } catch (error) {
-      next(error);
-    }
-  };
-
-  getAttendanceReport = async (
-    req: Request,
-    res: Response,
-    next: NextFunction,
-  ) => {
-    try {
-      const authEmployeeId = res.locals.user?.id;
-      const query = plainToInstance(GetAttendanceReportDTO, req.query);
-      const result = await this.attendanceService.getAttendanceReport(
-        authEmployeeId,
-        query,
-      );
-      res.status(200).send(result);
-    } catch (error) {
-      next(error);
-    }
-  };
   getAttendances = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const authUserId = req.user?.id;
       const query = plainToInstance(GetAttendanceReportDTO, req.query);
-      console.log("Controller - Auth User ID:", authUserId);
-      console.log("Controller - DTO:", query);
       const result = await this.attendanceService.getAttendances(
         Number(authUserId), // req.user?.id,
         query,

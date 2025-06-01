@@ -16,12 +16,4 @@ export class RegisterDTO {
   @IsOptional()
   @IsString()
   readonly phoneNumber?: string;
-
-  @IsNotEmpty()
-  @IsString()
-  readonly firstName!: string;
-
-  @IsNotEmpty()
-  @IsString()
-  readonly lastName!: string;
 }

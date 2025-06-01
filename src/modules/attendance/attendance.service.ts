@@ -48,7 +48,6 @@ export class AttendanceService {
 
       return attendance;
     });
-
     return result;
   };
 
@@ -204,7 +203,7 @@ export class AttendanceService {
       throw new ApiError("Employee not found", 404);
     }
 
-    if (user.role !== "OUTLET_ADMIN") {
+    if (user.role !== "OUTLET_ADMIN" && user.role !== "ADMIN") {
       throw new ApiError(
         "Access denied. Only outlet admin can view attendance reports",
         403,
@@ -351,7 +350,7 @@ export class AttendanceService {
     const whereClause: Prisma.AttendanceWhereInput = {};
 
     // Role-based access control
-    if (user.role === "OUTLET_ADMIN") {
+    if (user.role === "OUTLET_ADMIN" || user.role === "ADMIN") {
       whereClause.outletId = currentEmployee.outletId;
 
       // If specific employee is requested
@@ -365,7 +364,7 @@ export class AttendanceService {
           user: {
             AND: [
               {
-                role: { in: ["DRIVER", "WORKER", "OUTLET_ADMIN"] },
+                role: { in: ["DRIVER", "WORKER", "OUTLET_ADMIN", "ADMIN"] },
               },
               {
                 OR: [
@@ -380,7 +379,7 @@ export class AttendanceService {
       } else {
         whereClause.employee = {
           user: {
-            role: { in: ["DRIVER", "WORKER"] },
+            role: { in: ["DRIVER", "WORKER", "OUTLET_ADMIN", "ADMIN"] },
           },
         };
       }
@@ -399,7 +398,6 @@ export class AttendanceService {
 
     // Date filtering
     if (startDate || endDate) {
-      console.log("📅 Date filtering:", { startDate, endDate });
       whereClause.clockInAt = {};
 
       if (startDate) {
@@ -420,8 +418,6 @@ export class AttendanceService {
         take,
       };
     }
-
-    console.log("📄 Pagination:", paginationArgs);
 
     // Get attendance data
     const attendanceData = await this.prisma.attendance.findMany({

@@ -21,21 +21,7 @@ export class AttendanceRouter {
       "/",
       this.jwtMiddleware.verifyToken(env().JWT_SECRET),
       verifyRole(["DRIVER", "OUTLET_ADMIN", "WORKER", "ADMIN"]),
-      this.attendanceController.getAttendanceHistory,
-    );
-
-    this.router.get(
-      "/history",
-      this.jwtMiddleware.verifyToken(env().JWT_SECRET),
-      verifyRole(["DRIVER", "OUTLET_ADMIN", "WORKER", "ADMIN"]),
       this.attendanceController.getAttendances,
-    );
-
-    this.router.get(
-      "/:id",
-      this.jwtMiddleware.verifyToken(env().JWT_SECRET),
-      verifyRole(["OUTLET_ADMIN", "ADMIN"]),
-      this.attendanceController.getAttendanceReport,
     );
 
     this.router.post(

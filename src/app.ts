@@ -10,6 +10,7 @@ import { AuthRouter } from "./modules/auth/auth.router";
 import { SampleRouter } from "./modules/sample/sample.router";
 import { OutletRouter } from "./modules/outlet/outlet.router";
 import { AttendanceRouter } from "./modules/attendance/attendance.router";
+import { DriverRouter } from "./modules/driver/driver.router";
 
 export default class App {
   public app;
@@ -33,6 +34,7 @@ export default class App {
     const adminRouter = container.resolve(AdminRouter);
     const outletRouter = container.resolve(OutletRouter);
     const attendanceRouter = container.resolve(AttendanceRouter);
+    const driverRouter = container.resolve(DriverRouter);
 
     this.app.get("/", (_, res) => {
       res.send("Welcome");
@@ -41,7 +43,7 @@ export default class App {
     this.app.use("/auth", authRouter.getRouter());
     this.app.use("/admin", adminRouter.getRouter());
     this.app.use("/outlet", outletRouter.getRouter());
-
+    this.app.use("/driver", driverRouter.getRouter());
     this.app.use("/attendance", attendanceRouter.getRouter());
   }
 
