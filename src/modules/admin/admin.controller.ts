@@ -57,15 +57,9 @@ export class AdminController {
       const files = req.files as { [fieldname: string]: Express.Multer.File[] };
       const profile = files.profile?.[0];
       const body = req.body as CreateUserDTO;
-      const currentUser = req.user as {
-        id: number;
-        role: string;
-        outletId?: number;
-      };
-      const result = await this.adminService.createUser(body, profile, {
-        ...currentUser,
-        role: currentUser.role as Role,
-      });
+
+      const result = await this.adminService.createUser(body, profile);
+
       res.status(201).json(result);
     } catch (error) {
       next(error);
@@ -75,20 +69,12 @@ export class AdminController {
   deleteUser = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const userId = Number(req.params.id);
-      const currentUser = req.user as {
-        id: number;
-        role: string;
-        outletId?: number;
-      };
 
       if (isNaN(userId) || userId <= 0) {
         throw new ApiError("Invalid user ID", 400);
       }
 
-      const result = await this.adminService.deleteUser(userId, {
-        ...currentUser,
-        role: currentUser.role as Role,
-      });
+      const result = await this.adminService.deleteUser(userId);
 
       res.status(200).json(result);
     } catch (error) {
@@ -101,21 +87,12 @@ export class AdminController {
       const userId = Number(req.params.id);
       const body: UpdateUserDTO = req.body;
       const profile = req.file;
-      const currentUser = req.user as {
-        id: number;
-        role: string;
-        outletId?: number;
-      };
 
       if (isNaN(userId) || userId <= 0) {
         throw new ApiError("Invalid user ID", 400);
       }
 
-      const result = await this.adminService.updateUser(userId, body, profile, {
-        ...currentUser,
-        role: currentUser.role as Role,
-      });
-
+      const result = await this.adminService.updateUser(userId, body, profile);
       res.status(200).json(result);
     } catch (error) {
       next(error);

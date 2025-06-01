@@ -217,19 +217,10 @@ export class AdminValidation {
     role?: string;
     npwp?: string;
     outletId?: string;
-    currentUser: CurrentUser;
     existingUser: any;
   }): Promise<void> => {
-    const {
-      userId,
-      email,
-      phoneNumber,
-      role,
-      npwp,
-      outletId,
-      currentUser,
-      existingUser,
-    } = data;
+    const { userId, email, phoneNumber, role, npwp, outletId, existingUser } =
+      data;
 
     if (email && email !== existingUser.email) {
       const emailExists = await this.prisma.user.findFirst({
@@ -267,7 +258,7 @@ export class AdminValidation {
         throw new ApiError(`NPWP wajib untuk role ${role}`, 400);
       }
 
-      if (currentUser.role === "ADMIN" && !outletId) {
+      if (!outletId) {
         throw new ApiError(`Outlet wajib untuk role ${role}`, 400);
       }
     }
