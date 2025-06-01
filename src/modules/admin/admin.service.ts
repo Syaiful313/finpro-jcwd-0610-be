@@ -1,14 +1,14 @@
 import { Prisma, Role } from "@prisma/client";
 import { injectable } from "tsyringe";
 import { ApiError } from "../../utils/api-error";
-import { GetUsersDTO } from "./dto/get-users.dto";
 import { CloudinaryService } from "../cloudinary/cloudinary.service";
 import { PaginationService } from "../pagination/pagination.service";
 import { PrismaService } from "../prisma/prisma.service";
+import { AdminValidation } from "./admin.validation";
 import { CreateUserDTO } from "./dto/create-user.dto";
-import { PasswordService } from "./password.service";
+import { GetUsersDTO } from "./dto/get-users.dto";
 import { UpdateUserDTO } from "./dto/update-user.dto";
-import { AdminValidation, CurrentUser } from "./admin.validation";
+import { PasswordService } from "./password.service";
 
 @injectable()
 export class AdminService {
@@ -150,11 +150,23 @@ export class AdminService {
             select: {
               id: true,
               npwp: true,
+              outletId: true,
               createdAt: true,
             },
           },
         }
-      : baseSelect;
+      : {
+          ...baseSelect,
+
+          employees: {
+            select: {
+              id: true,
+              npwp: true,
+              outletId: true,
+              createdAt: true,
+            },
+          },
+        };
 
     let paginationArgs: Prisma.UserFindManyArgs = {};
 
@@ -178,6 +190,9 @@ export class AdminService {
         phoneNumber: user.phoneNumber ? user.phoneNumber.toString() : null,
       };
 
+      const employeeInfo =
+        (user as any).employees?.length > 0 ? (user as any).employees[0] : null;
+
       if (outletId) {
         const shouldIncludeOrderCount =
           user.role === Role.DRIVER || user.role === Role.WORKER;
@@ -187,16 +202,17 @@ export class AdminService {
           ...(shouldIncludeOrderCount && {
             totalOrdersInOutlet: (user as any)._count?.orders || 0,
           }),
-          employeeInfo:
-            (user as any).employees?.length > 0
-              ? (user as any).employees[0]
-              : null,
+          employeeInfo,
           _count: undefined,
           employees: undefined,
         };
       }
 
-      return baseTransformed;
+      return {
+        ...baseTransformed,
+        employeeInfo,
+        employees: undefined,
+      };
     });
 
     const count = await this.prisma.user.count({ where: whereClause });
@@ -211,11 +227,7 @@ export class AdminService {
     };
   };
 
-  createUser = async (
-    body: CreateUserDTO,
-    profile: Express.Multer.File,
-    currentUser: CurrentUser,
-  ) => {
+  createUser = async (body: CreateUserDTO, profile: Express.Multer.File) => {
     const {
       firstName,
       lastName,
@@ -235,19 +247,13 @@ export class AdminService {
 
     const parsedOutletId = outletId ? parseInt(outletId.toString()) : undefined;
 
-    const targetOutletId = await this.adminValidation.validateUserCreation(
-      currentUser,
-      role,
-      parsedOutletId,
-    );
-
     await this.adminValidation.validateUserData({
       email,
       phoneNumber,
       role,
       profile,
       npwp,
-      targetOutletId,
+      targetOutletId: parsedOutletId,
     });
 
     const isVerifiedBool =
@@ -272,10 +278,11 @@ export class AdminService {
           profilePic: profilePicUrl,
           isVerified: isVerifiedBool,
           provider: provider || "CREDENTIAL",
-          role: role || "CUSTOMER",
-          ...(targetOutletId &&
+          role: role,
+
+          ...(parsedOutletId &&
           ["OUTLET_ADMIN", "WORKER", "DRIVER"].includes(role)
-            ? { outletId: targetOutletId }
+            ? { outletId: parsedOutletId }
             : {}),
         },
       });
@@ -285,7 +292,7 @@ export class AdminService {
         await tx.employee.create({
           data: {
             userId: newUser.id,
-            outletId: targetOutletId!,
+            outletId: parsedOutletId!,
             npwp: npwp!,
           },
         });
@@ -304,21 +311,19 @@ export class AdminService {
     };
   };
 
-  deleteUser = async (userId: number, currentUser: CurrentUser) => {
-    const user = await this.adminValidation.validateUserExists(userId);
-
-    this.adminValidation.validateNotSelfDeletion(currentUser.id, userId);
-
-    await this.adminValidation.validateUserDeletion(currentUser, userId);
-
+  deleteUser = async (userId: number) => {
     const result = await this.prisma.$transaction(async (tx) => {
       const deletedUser = await tx.user.update({
         where: { id: userId },
         data: { deletedAt: new Date() },
       });
 
-      await tx.employee.deleteMany({
-        where: { userId: userId },
+      await tx.employee.updateMany({
+        where: {
+          userId: userId,
+          deletedAt: null,
+        },
+        data: { deletedAt: new Date() },
       });
 
       return deletedUser;
@@ -340,7 +345,6 @@ export class AdminService {
     userId: number,
     body: UpdateUserDTO,
     profile: Express.Multer.File | undefined,
-    currentUser: CurrentUser,
   ) => {
     const {
       firstName,
@@ -357,8 +361,6 @@ export class AdminService {
 
     const existingUser = await this.adminValidation.validateUserExists(userId);
 
-    await this.adminValidation.validateUserUpdate(currentUser, userId, role);
-
     await this.adminValidation.validateUserUpdateData({
       userId,
       email,
@@ -366,7 +368,6 @@ export class AdminService {
       role,
       npwp,
       outletId,
-      currentUser,
       existingUser,
     });
 
@@ -409,23 +410,19 @@ export class AdminService {
       if (isVerifiedBool !== undefined) updateData.isVerified = isVerifiedBool;
       if (provider !== undefined) updateData.provider = provider;
 
+      if (newRoleRequiresEmployeeData) {
+        updateData.outletId = outletId ? Number(outletId) : null;
+      } else {
+        updateData.outletId = null;
+      }
+
       const updatedUser = await tx.user.update({
         where: { id: userId },
         data: updateData,
       });
 
       if (newRoleRequiresEmployeeData) {
-        let targetOutletId: number | undefined = outletId
-          ? Number(outletId)
-          : undefined;
-
-        if (currentUser.role === "OUTLET_ADMIN") {
-          const currentUserEmployee = await tx.employee.findFirst({
-            where: { userId: currentUser.id },
-            select: { outletId: true },
-          });
-          targetOutletId = currentUserEmployee?.outletId;
-        }
+        const targetOutletId = outletId ? Number(outletId) : undefined;
 
         if (!targetOutletId) {
           throw new ApiError("Outlet ID wajib untuk role employee", 400);

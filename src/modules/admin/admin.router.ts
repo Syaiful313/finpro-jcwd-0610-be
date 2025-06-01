@@ -27,20 +27,20 @@ export class AdminRouter {
     this.router.post(
       "/users",
       this.jwtMiddleware.verifyToken(env().JWT_SECRET),
-      verifyRole(["ADMIN", "OUTLET_ADMIN"]),
+      verifyRole(["ADMIN"]),
       uploader().fields([{ name: "profile", maxCount: 1 }]),
       this.adminController.createUser,
     );
     this.router.delete(
       "/users/:id",
       this.jwtMiddleware.verifyToken(env().JWT_SECRET),
-      verifyRole(["ADMIN", "OUTLET_ADMIN"]),
+      verifyRole(["ADMIN"]),
       this.adminController.deleteUser,
     );
     this.router.patch(
       "/users/:id",
       this.jwtMiddleware.verifyToken(env().JWT_SECRET),
-      verifyRole(["ADMIN", "OUTLET_ADMIN"]),
+      verifyRole(["ADMIN"]),
       uploader().single("profile"),
       this.adminController.updateUser,
     );
