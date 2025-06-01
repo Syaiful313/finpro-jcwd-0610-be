@@ -12,7 +12,6 @@ import { OutletRouter } from "./modules/outlet/outlet.router";
 import { AttendanceRouter } from "./modules/attendance/attendance.router";
 import { DriverRouter } from "./modules/driver/driver.router";
 import { LaundryItemRouter } from "./modules/laundry-item/laundry-item.router";
-
 export default class App {
   public app;
 
