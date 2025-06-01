@@ -59,6 +59,8 @@ enum Provider {
 
 model Notification {
   id          Int          @id @default(autoincrement())
+  userId      Int          @unique
+  user        User         @relation(fields: [userId], references: [id])
   message     String
   orderStatus OrderStatus?
   notifType   NotifType
@@ -66,7 +68,6 @@ model Notification {
   createdAt   DateTime     @default(now())
   updatedAt   DateTime
 
-  users  User[]
   orders Order[]
 
   @@map("notifications")

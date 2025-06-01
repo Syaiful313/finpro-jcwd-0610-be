@@ -9,6 +9,7 @@ import { AdminRouter } from "./modules/admin/admin.router";
 import { AuthRouter } from "./modules/auth/auth.router";
 import { SampleRouter } from "./modules/sample/sample.router";
 import { OutletRouter } from "./modules/outlet/outlet.router";
+import { AttendanceRouter } from "./modules/attendance/attendance.router";
 
 export default class App {
   public app;
@@ -31,6 +32,7 @@ export default class App {
     const authRouter = container.resolve(AuthRouter);
     const adminRouter = container.resolve(AdminRouter);
     const outletRouter = container.resolve(OutletRouter);
+    const attendanceRouter = container.resolve(AttendanceRouter);
 
     this.app.get("/", (_, res) => {
       res.send("Welcome");
@@ -40,6 +42,7 @@ export default class App {
     this.app.use("/admin", adminRouter.getRouter());
     this.app.use("/outlet", outletRouter.getRouter());
 
+    this.app.use("/attendance", attendanceRouter.getRouter());
   }
 
   private handleError(): void {

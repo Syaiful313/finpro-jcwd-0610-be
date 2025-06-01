@@ -1,0 +1,211 @@
+# =========== ATTENDANCE HISTORY ENDPOINTS ===========
+
+# Base URL: https://api.yourapp.com/api/attendance/history
+
+# === DRIVER/WORKER ENDPOINTS ===
+
+# 1. Basic pagination - Driver/Worker melihat history mereka sendiri
+GET /api/attendance?page=1&take=10&sortBy=clockInAt&sortOrder=desc
+
+# 2. Filter berdasarkan tanggal
+GET /api/attendance/history?page=1&take=20&startDate=2024-05-01&endDate=2024-05-31
+
+# 3. Sorting berdasarkan clockOutAt
+GET /api/attendance/history?page=1&take=15&sortBy=clockOutAt&sortOrder=asc
+
+# 4. Ambil semua data tanpa pagination
+GET /api/attendance/history?all=true&startDate=2024-05-01&endDate=2024-05-31
+
+# 5. Filter minggu ini
+GET /api/attendance/history?startDate=2024-05-27&endDate=2024-05-31&sortOrder=desc
+
+# 6. Default request (minimal parameters)
+GET /api/attendance/history
+
+# === OUTLET_ADMIN ENDPOINTS ===
+
+# 7. Admin melihat semua attendance di outlet
+GET /api/attendance/history?page=1&take=20&sortBy=clockInAt&sortOrder=desc
+
+# 8. Admin search berdasarkan nama employee
+GET /api/attendance/history?page=1&take=20&search=john&sortBy=clockInAt&sortOrder=desc
+
+# 9. Admin search berdasarkan email
+GET /api/attendance/history?page=1&take=20&search=john.doe@company.com
+
+# 10. Admin filter berdasarkan employee tertentu
+GET /api/attendance/history?page=1&take=30&employeeId=123&startDate=2024-05-01&endDate=2024-05-31
+
+# 11. Admin kombinasi search + filter tanggal
+GET /api/attendance/history?page=1&take=25&search=driver&startDate=2024-05-15&endDate=2024-05-30
+
+# 12. Admin export semua data employee tertentu
+GET /api/attendance/history?all=true&employeeId=456&startDate=2024-05-01&endDate=2024-05-31
+
+# 13. Admin search partial name
+GET /api/attendance/history?search=do&page=1&take=20
+
+# 14. Admin filter bulan ini
+GET /api/attendance/history?startDate=2024-05-01&endDate=2024-05-31&page=1&take=50
+
+# 15. Admin kombinasi lengkap
+GET /api/attendance/history?page=2&take=30&search=john&employeeId=789&startDate=2024-05-01&endDate=2024-05-31&sortBy=clockInAt&sortOrder=asc
+
+# === USING POST METHOD (Alternative) ===
+
+# Jika menggunakan POST request dengan body JSON
+POST /api/attendance/history
+Content-Type: application/json
+Authorization: Bearer <jwt_token>
+
+# Body untuk Driver/Worker:
+{
+  "page": 1,
+  "take": 10,
+  "startDate": "2024-05-01",
+  "endDate": "2024-05-31",
+  "sortBy": "clockInAt",
+  "sortOrder": "desc"
+}
+
+# Body untuk Admin dengan search:
+{
+  "page": 1,
+  "take": 20,
+  "search": "john doe",
+  "startDate": "2024-05-01",
+  "endDate": "2024-05-31",
+  "sortBy": "clockInAt",
+  "sortOrder": "desc"
+}
+
+# === REAL WORLD EXAMPLES ===
+
+# Frontend Dashboard - Load recent attendance
+GET /api/attendance/history?page=1&take=10&sortOrder=desc
+
+# Mobile App - Load this week's attendance
+GET /api/attendance/history?startDate=2024-05-27&endDate=2024-05-31&all=true
+
+# Admin Panel - Search employee "John"
+GET /api/attendance/history?search=john&page=1&take=20
+
+# Admin Report - Specific employee this month
+GET /api/attendance/history?employeeId=123&startDate=2024-05-01&endDate=2024-05-31&all=true
+
+# Admin Analytics - All data for analysis
+GET /api/attendance/history?all=true&startDate=2024-01-01&endDate=2024-05-31
+
+# Mobile pagination - Load more data
+GET /api/attendance/history?page=2&take=10&startDate=2024-05-01&endDate=2024-05-31
+
+# === URL ENCODING EXAMPLES ===
+
+# Search dengan spasi
+GET /api/attendance/history?search=john%20doe&page=1&take=20
+
+# Email search
+GET /api/attendance/history?search=john.doe%40company.com&page=1&take=20
+
+# Date dengan format ISO
+GET /api/attendance/history?startDate=2024-05-01T00%3A00%3A00.000Z&endDate=2024-05-31T23%3A59%3A59.999Z
+
+# === CONTROLLER IMPLEMENTATION ===
+
+# NestJS Controller Example:
+@Get('history')
+@UseGuards(JwtAuthGuard)
+async getAttendanceHistory(
+  @Request() req,
+  @Query() dto: GetAttendanceHistoryDTO
+) {
+  return this.attendanceService.getAttendanceHistory(req.user.id, dto);
+}
+
+# Express Controller Example:
+app.get('/api/attendance/history', authenticateToken, async (req, res) => {
+  try {
+    const result = await attendanceService.getAttendanceHistory(
+      req.user.id,
+      req.query
+    );
+    res.json(result);
+  } catch (error) {
+    res.status(error.statusCode || 500).json({ error: error.message });
+  }
+});
+
+# === RESPONSE EXAMPLES ===
+
+# Success Response (Driver/Worker):
+HTTP/1.1 200 OK
+Content-Type: application/json
+
+{
+  "data": [
+    {
+      "id": 1,
+      "clockInAt": "2024-05-30T08:00:00.000Z",
+      "clockOutAt": "2024-05-30T17:00:00.000Z",
+      "workingHours": 9,
+      "employee": {
+        "id": 123
+      },
+      "outlet": {
+        "id": 1,
+        "outletName": "Outlet Central"
+      }
+    }
+  ],
+  "meta": {
+    "page": 1,
+    "take": 10,
+    "total": 25,
+    "totalPages": 3
+  }
+}
+
+# Success Response (Admin):
+HTTP/1.1 200 OK
+Content-Type: application/json
+
+{
+  "data": [
+    {
+      "id": 1,
+      "clockInAt": "2024-05-30T08:00:00.000Z",
+      "clockOutAt": "2024-05-30T17:00:00.000Z",
+      "workingHours": 9,
+      "employee": {
+        "id": 123,
+        "user": {
+          "id": 456,
+          "firstName": "John",
+          "lastName": "Doe",
+          "email": "john.doe@company.com",
+          "role": "DRIVER"
+        }
+      },
+      "outlet": {
+        "id": 1,
+        "outletName": "Outlet Central"
+      }
+    }
+  ],
+  "meta": {
+    "page": 1,
+    "take": 20,
+    "total": 150,
+    "totalPages": 8
+  }
+}
+
+# Error Response:
+HTTP/1.1 404 Not Found
+Content-Type: application/json
+
+{
+  "error": "Employee not found",
+  "statusCode": 404,
+  "timestamp": "2024-05-30T10:30:00.000Z"
+}
