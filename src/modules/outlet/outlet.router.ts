@@ -21,7 +21,25 @@ export class OutletRouter {
       "/",
       this.jwtMiddleware.verifyToken(env().JWT_SECRET),
       verifyRole(["ADMIN", "OUTLET_ADMIN"]),
-      this.outletController.getAllOutlets,
+      this.outletController.getOutlets,
+    );
+    this.router.post(
+      "/",
+      this.jwtMiddleware.verifyToken(env().JWT_SECRET),
+      verifyRole(["ADMIN"]),
+      this.outletController.createOutlet,
+    );
+    this.router.patch(
+      "/:id",
+      this.jwtMiddleware.verifyToken(env().JWT_SECRET),
+      verifyRole(["ADMIN"]),
+      this.outletController.updateOutlet,
+    );
+    this.router.delete(
+      "/:id",
+      this.jwtMiddleware.verifyToken(env().JWT_SECRET),
+      verifyRole(["ADMIN"]),
+      this.outletController.deleteOutlet,
     );
   }
 
