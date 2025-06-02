@@ -13,13 +13,7 @@ export class RegisterDTO {
   @IsString()
   readonly phoneNumber?: string;
 
-
   @IsNotEmpty()
   @IsString()
   readonly email!: string;
-
-  @IsOptional()
-  @IsString()
-  readonly phoneNumber?: string;
-
 }
