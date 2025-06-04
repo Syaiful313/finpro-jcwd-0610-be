@@ -296,18 +296,20 @@ enum PaymentStatus {
 }
 
 model OrderItem {
-  id              Int      @id @default(autoincrement())
-  orderId         String
-  order           Order    @relation(fields: [orderId], references: [uuid])
-  itemId          String
-  laundryCategory String
-  color           String
-  brand           String
-  materials       String
-  price           Float
-  weight          Float
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id            Int         @id @default(autoincrement())
+  orderId       String
+  order         Order       @relation(fields: [orderId], references: [uuid])
+  laundryItemId Int
+  laundryItem   LaundryItem @relation(fields: [laundryItemId], references: [id])
+  quantity      Int?
+  weight        Float?
+  pricePerUnit  Float
+  color         String?
+  brand         String?
+  materials     String?
+  totalPrice    Float
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
 
   orderItemDetails OrderItemDetail[]
 
@@ -324,4 +326,25 @@ model OrderItemDetail {
   updatedAt   DateTime  @updatedAt
 
   @@map("orderItemDetails")
+}
+
+model LaundryItem {
+  id          Int         @id @default(autoincrement())
+  name        String      @unique
+  category    String
+  basePrice   Float
+  pricingType PricingType @default(PER_PIECE)
+  isActive    Boolean     @default(true)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  deletedAt   DateTime?
+
+  orderItems OrderItem[]
+
+  @@map("laundryItems")
+}
+
+enum PricingType {
+  PER_PIECE
+  PER_KG
 }
