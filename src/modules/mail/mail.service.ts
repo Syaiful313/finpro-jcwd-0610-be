@@ -83,4 +83,20 @@ export class MailService {
 
     await this.sendEmail(to, subject, templateName, context);
   }
+
+  public async sendResetPasswordEmail(
+    to: string,
+    resetPasswordLink: string,
+    userName?: string,
+  ): Promise<void> {
+    const subject = "Reset password for your Bubblify account";
+    const templateName = "reset-password-email";
+    const context = {
+      resetPasswordLink,
+      userName,
+      currentYear: new Date().getFullYear(),
+    };
+
+    await this.sendEmail(to, subject, templateName, context);
+  }
 }

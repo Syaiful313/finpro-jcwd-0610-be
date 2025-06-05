@@ -28,7 +28,6 @@ model User {
   phoneNumber            String?   @unique
   profilePic             String?
   isVerified             Boolean   @default(false)
-  emailVerificationToken String?   @unique
   provider               Provider  @default(CREDENTIAL)
   outletId               Int?
   outlet                 Outlet?   @relation(fields: [outletId], references: [id])

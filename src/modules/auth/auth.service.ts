@@ -9,16 +9,25 @@ import { PasswordService } from "./password.service";
 import { TokenService } from "./token.service";
 import { MailService } from "../mail/mail.service";
 import { VerificationDTO } from "./dto/verification.dto";
-import { ResendEmailDTO } from "./dto/resendEmail.dto";
+import { GoogleAuthDTO } from "./dto/googleAuth";
+import { auth, OAuth2Client } from "google-auth-library";
+import { ForgotPasswordDTO } from "./dto/forgotPassword";
+import { ResetPasswordDTO } from "./dto/resetPassword";
 
 @injectable()
 export class AuthService {
+  private readonly googleClient: OAuth2Client;
   constructor(
     private readonly prisma: PrismaService,
     private readonly passwordService: PasswordService,
     private readonly tokenService: TokenService,
     private readonly mailService: MailService,
-  ) {}
+  ) {
+    if (!process.env.GOOGLE_CLIENT_ID) {
+      throw new Error("Missing GOOGLE_CLIENT_ID env variable");
+    }
+    this.googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+  }
 
   login = async (body: LoginDTO) => {
     const { email, password } = body;
@@ -101,19 +110,12 @@ export class AuthService {
       select: prismaExclude("User", ["password"]),
     });
 
-    const verificationPayload = { userId: newUser.id, email: newUser.email };
+    const verificationPayload = { id: newUser.id, email: newUser.email };
     const emailVerificationToken = this.tokenService.generateToken(
       verificationPayload,
-      process.env.JWT_SECRET as string,
-      { expiresIn: "1h" },
+      process.env.JWT_SECRET_KEY_VERIFICATION as string,
+      { expiresIn: "15m" },
     );
-
-    await this.prisma.user.update({
-      where: { id: newUser.id },
-      data: {
-        emailVerificationToken: emailVerificationToken,
-      },
-    });
 
     const verificationLink = `${process.env.FRONTEND_URL}/register/set-password?token=${emailVerificationToken}`;
     await this.mailService.sendVerificationEmail(
@@ -124,40 +126,25 @@ export class AuthService {
     return newUser;
   };
 
-  verifyEmailAndSetPassword = async (body: VerificationDTO) => {
-    const { token, password } = body;
-    let decoded: any;
-    try {
-      decoded = this.tokenService.verifyToken(
-        token,
-        process.env.JWT_SECRET as string,
-      );
-    } catch (err) {
-      throw new ApiError("Invalid or expired verification token", 400);
-    }
-
-    const userId = decoded.userId;
-    const userEmail = decoded.email;
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId, email: userEmail },
+  verifyEmailAndSetPassword = async (
+    body: VerificationDTO,
+    authUserId: number,
+  ) => {
+    const { password } = body;
+    const existingUser = await this.prisma.user.findUnique({
+      where: { id: authUserId },
     });
 
-    if (
-      !user ||
-      user.isVerified ||
-      !user.emailVerificationToken ||
-      user.emailVerificationToken !== token
-    ) {
+    if (!existingUser || existingUser.isVerified) {
       throw new ApiError("Invalid or already verified user/token", 400);
     }
 
     const hashedPassword = await this.passwordService.hashPassword(password);
     const updatedUser = await this.prisma.user.update({
-      where: { id: user.id },
+      where: { id: authUserId },
       data: {
         password: hashedPassword,
         isVerified: true,
-        emailVerificationToken: null,
       },
       select: prismaExclude("User", ["password"]),
     });
@@ -165,39 +152,106 @@ export class AuthService {
     return updatedUser;
   };
 
-  resendEmailVerification = async (body: ResendEmailDTO) => {
+  googleAuth = async (body: GoogleAuthDTO) => {
+    const { tokenId } = body;
+    const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+
+    const ticket = await this.googleClient.verifyIdToken({
+      idToken: tokenId,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
+
+    const payload = ticket.getPayload();
+    if (
+      !payload ||
+      !payload.email ||
+      !payload.name ||
+      !payload.email_verified
+    ) {
+      throw new Error("Google account not verified.");
+    }
+
+    const { email, name, picture } = payload;
+
+    const [firstName, ...lastNameParts] = name.split(" ");
+    const lastName = lastNameParts.join(" ") || "";
+
+    let user = await this.prisma.user.findUnique({ where: { email } });
+
+    if (!user) {
+      user = await this.prisma.user.create({
+        data: {
+          email,
+          firstName,
+          lastName,
+          profilePic: picture,
+          provider: "GOOGLE",
+        },
+      });
+    }
+
+    if (!process.env.JWT_SECRET) {
+      throw new Error("Missing JWT_SECRET env variable");
+    }
+    const token = this.tokenService.generateToken(
+      { userId: user.id },
+      process.env.JWT_SECRET!,
+      { expiresIn: "1h" },
+    );
+
+    return { user, token };
+  };
+
+  forgotPassword = async (body: ForgotPasswordDTO) => {
     const { email } = body;
     const existingUser = await this.prisma.user.findFirst({
       where: { email },
     });
-
     if (!existingUser) {
       throw new ApiError("Email is not registered", 400);
     }
+    if (existingUser.isVerified === false) {
+      throw new ApiError("Please verify your email", 400);
+    }
 
-    const verificationPayload = {
+    const forgotPasswordPayload = {
       userId: existingUser.id,
       email: existingUser.email,
     };
-    const emailVerificationToken = this.tokenService.generateToken(
-      verificationPayload,
-      process.env.JWT_SECRET as string,
-      { expiresIn: "1h" },
+    const resetPasswordToken = this.tokenService.generateToken(
+      forgotPasswordPayload,
+      process.env.JWT_SECRET_KEY_RESET_PASSWORD as string,
+      { expiresIn: "15m" },
     );
 
-    await this.prisma.user.update({
-      where: { id: existingUser.id },
-      data: {
-        emailVerificationToken: emailVerificationToken,
-      },
-    });
-
-    const verificationLink = `${process.env.FRONTEND_URL}/register/set-password?token=${emailVerificationToken}`;
-    await this.mailService.sendVerificationEmail(
+    const resetPasswordLink = `${process.env.FRONTEND_URL}/reset-password?token=${resetPasswordToken}`;
+    await this.mailService.sendResetPasswordEmail(
       existingUser.email,
-      verificationLink,
+      resetPasswordLink,
+      existingUser.firstName,
     );
 
     return existingUser;
+  };
+
+  resetPassword = async (body: ResetPasswordDTO, authUserId: number) => {
+    const { newPassword } = body;
+    const existingUser = await this.prisma.user.findFirst({
+      where: { id: authUserId },
+    });
+    if (!existingUser) {
+      throw new ApiError("User is not registered", 400);
+    }
+
+    const hashedPassword = await this.passwordService.hashPassword(newPassword);
+
+    await this.prisma.user.update({
+      where: { id: existingUser.id },
+      data: { password: hashedPassword },
+    });
+
+    return {
+      message: "Password reset successfully",
+    };
   };
 }
