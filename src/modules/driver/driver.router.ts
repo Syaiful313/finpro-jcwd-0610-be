@@ -1,9 +1,11 @@
-import { injectable } from "tsyringe";
+import { autoInjectable, injectable } from "tsyringe";
 import { DriverController } from "./driver.controller";
 import { JwtMiddleware } from "../../middleware/jwt.middleware";
 import { Router } from "express";
+import { verifyRole } from "../../middleware/role.middleware";
+import { env } from "../../config";
 
-@injectable()
+@autoInjectable()
 export class DriverRouter {
   private readonly router: Router = Router();
 
@@ -14,7 +16,14 @@ export class DriverRouter {
     this.initializeRoutes();
   }
 
-  private initializeRoutes = (): void => {};
+  private initializeRoutes = (): void => {
+    this.router.get(
+      "/",
+      this.jwtMiddleware.verifyToken(env().JWT_SECRET),
+      verifyRole(["DRIVER"]),
+      this.driverController.getAvailableRequests,
+    );
+  };
 
   getRouter(): Router {
     return this.router;
