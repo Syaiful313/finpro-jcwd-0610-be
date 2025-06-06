@@ -1,6 +1,6 @@
 import { IsNotEmpty, IsString } from "class-validator";
 
-export class ResendEmailDTO {
+export class ForgotPasswordDTO {
   @IsNotEmpty()
   @IsString()
   readonly email!: string;

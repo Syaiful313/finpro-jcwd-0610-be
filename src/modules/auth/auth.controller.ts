@@ -4,7 +4,9 @@ import { AuthService } from "./auth.service";
 import { LoginDTO } from "./dto/login.dto";
 import { RegisterDTO } from "./dto/register.dto";
 import { VerificationDTO } from "./dto/verification.dto";
-import { ResendEmailDTO } from "./dto/resendEmail.dto";
+import { GoogleAuthDTO } from "./dto/googleAuth";
+import { ForgotPasswordDTO } from "./dto/forgotPassword";
+import { ResetPasswordDTO } from "./dto/resetPassword";
 
 @injectable()
 export class AuthController {
@@ -36,22 +38,44 @@ export class AuthController {
     next: NextFunction,
   ) => {
     try {
+      const authUserId = req.user!.id;
+      console.log("Auth User ID", authUserId);
       const body = req.body as VerificationDTO;
-      const result = await this.authService.verifyEmailAndSetPassword(body);
+      const result = await this.authService.verifyEmailAndSetPassword(
+        body,
+        authUserId,
+      );
       res.status(200).send(result);
     } catch (error) {
       next(error);
     }
   };
 
-  resendEmailVerification = async (
-    req: Request,
-    res: Response,
-    next: NextFunction,
-  ) => {
+  googleAuth = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const body = req.body as ResendEmailDTO;
-      const result = await this.authService.resendEmailVerification(body);
+      const body = req.body as GoogleAuthDTO;
+      const result = await this.authService.googleAuth(body);
+      res.status(200).send(result);
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  forgotPassword = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const body = req.body as ForgotPasswordDTO;
+      const result = await this.authService.forgotPassword(body);
+      res.status(200).send(result);
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  resetPassword = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const authUserId = req.user!.id;
+      const body = req.body as ResetPasswordDTO;
+      const result = await this.authService.resetPassword(body, authUserId);
       res.status(200).send(result);
     } catch (error) {
       next(error);

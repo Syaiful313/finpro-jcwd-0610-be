@@ -22,6 +22,7 @@ export class JwtMiddleware {
           if (err instanceof TokenExpiredError) {
             throw new ApiError("Token expired", 403);
           } else {
+            console.error("Invalid Token Error", err);
             throw new ApiError("Invalid token", 403);
           }
         }
