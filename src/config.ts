@@ -16,6 +16,14 @@ class EnvConfig {
 
   @IsNotEmpty()
   @IsString()
+  readonly JWT_SECRET_KEY_RESET_PASSWORD!: string;
+
+  @IsNotEmpty()
+  @IsString()
+  readonly JWT_SECRET_KEY_VERIFICATION!: string;
+
+  @IsNotEmpty()
+  @IsString()
   readonly MAIL_USER!: string;
 
   @IsNotEmpty()

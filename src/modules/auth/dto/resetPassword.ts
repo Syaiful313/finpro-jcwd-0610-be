@@ -1,7 +1,7 @@
 import { IsNotEmpty, IsString } from "class-validator";
 
-export class VerificationDTO {
+export class ResetPasswordDTO {
   @IsNotEmpty()
   @IsString()
-  readonly password!: string;
+  readonly newPassword!: string;
 }
