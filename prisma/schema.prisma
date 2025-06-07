@@ -32,13 +32,12 @@ model User {
   outletId               Int?
   outlet                 Outlet?   @relation(fields: [outletId], references: [id])
   createdAt              DateTime  @default(now())
-  updatedAt              DateTime  @updatedAt
+  updatedAt              DateTime? @updatedAt
   deletedAt              DateTime?
 
-  employees     Employee[]
-  addresses     Address[]
-  orders        Order[]
-  notifications Notification[]
+  employees Employee[]
+  addresses Address[]
+  orders    Order[]
 
   @@map("users")
 }
@@ -58,24 +57,26 @@ enum Provider {
 
 model Notification {
   id          Int          @id @default(autoincrement())
-  userId      Int
-  user        User         @relation(fields: [userId], references: [id])
   message     String
   orderStatus OrderStatus?
   notifType   NotifType
+  role        Role?
   isRead      Boolean      @default(false)
   createdAt   DateTime     @default(now())
-  updatedAt   DateTime
-
-  orders Order[]
+  updatedAt   DateTime?
+  orderUuid   String?
+  Order       Order?       @relation(fields: [orderUuid], references: [uuid])
 
   @@map("notifications")
 }
 
 enum NotifType {
   NEW_PICKUP_REQUEST
+  PICKUP_STARTED
+  PICKUP_COMPLETED
   NEW_DELIVERY_REQUEST
-  REQUEST_PICKUP_CANCELLED
+  DELIVERY_STARTED
+  DELIVERY_COMPLETED
   ORDER_COMPLETED
   BYPASS_REQUEST
   BYPASS_APPROVED
@@ -90,7 +91,7 @@ model Employee {
   outlet    Outlet    @relation(fields: [outletId], references: [id])
   npwp      String
   createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  updatedAt DateTime? @updatedAt
   deletedAt DateTime?
 
   attendances      Attendance[]
@@ -111,22 +112,22 @@ model Attendance {
   clockInAt  DateTime? @default(now())
   clockOutAt DateTime?
   createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
+  updatedAt  DateTime? @updatedAt
 
   @@map("attendances")
 }
 
 model PickUpJob {
   id                   Int              @id @default(autoincrement())
-  employeeId           Int
-  employee             Employee         @relation(fields: [employeeId], references: [id])
+  employeeId           Int?
+  employee             Employee?        @relation(fields: [employeeId], references: [id])
   orderId              String
   order                Order            @relation(fields: [orderId], references: [uuid])
   pickUpPhotos         String?
   pickUpScheduleOutlet String
   notes                String?
   status               DriverTaskStatus @default(PENDING)
-  updatedAt            DateTime         @updatedAt
+  updatedAt            DateTime?        @updatedAt
   createdAt            DateTime         @default(now())
 
   @@map("pickUpJobs")
@@ -142,14 +143,14 @@ enum DriverTaskStatus {
 
 model DeliveryJob {
   id             Int              @id @default(autoincrement())
-  employeeId     Int
-  employee       Employee         @relation(fields: [employeeId], references: [id])
+  employeeId     Int?
+  employee       Employee?        @relation(fields: [employeeId], references: [id])
   orderId        String
   order          Order            @relation(fields: [orderId], references: [uuid])
   deliveryPhotos String?
   notes          String?
   status         DriverTaskStatus @default(PENDING)
-  updatedAt      DateTime         @updatedAt
+  updatedAt      DateTime?        @updatedAt
   createdAt      DateTime         @default(now())
 
   @@map("deliveryJobs")
@@ -186,7 +187,7 @@ model OrderWorkProcess {
   notes       String?
   completedAt DateTime?
   createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
+  updatedAt   DateTime?      @updatedAt
 
   @@map("orderWorkProcesses")
 }
@@ -205,7 +206,7 @@ model BypassRequest {
   adminNote          String?
   bypassStatus       BypassStatus @default(PENDING)
   createdAt          DateTime     @default(now())
-  updatedAt          DateTime     @updatedAt
+  updatedAt          DateTime?    @updatedAt
 
   orderWorkProcesses OrderWorkProcess[]
 
@@ -227,7 +228,7 @@ model Outlet {
   serviceRadius Float
   isActive      Boolean   @default(true)
   createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  updatedAt     DateTime? @updatedAt
   deletedAt     DateTime?
 
   employees   Employee[]
@@ -244,8 +245,6 @@ model Order {
   user                  User          @relation(fields: [userId], references: [id])
   outletId              Int
   outlet                Outlet        @relation(fields: [outletId], references: [id])
-  notificationId        Int?
-  notification          Notification? @relation(fields: [notificationId], references: [id])
   address_line          String
   district              String
   city                  String
@@ -257,17 +256,20 @@ model Order {
   actualPickupTime      DateTime?
   scheduledDeliveryTime DateTime?
   actualDeliveryTime    DateTime?
-  totalDeliveryFee      Float
-  totalWeight           Float
-  totalPrice            Float
+  totalDeliveryFee      Float?
+  totalWeight           Float?
+  totalPrice            Float?
   paymentStatus         PaymentStatus @default(WAITING_PAYMENT)
   createdAt             DateTime      @default(now())
-  updatedAt             DateTime      @updatedAt
+  updatedAt             DateTime?     @updatedAt
+  // notificationId        Int?
+  // notifications         Notification? @relation(fields: [notificationId], references: [id])
 
   orderItems       OrderItem[]
   pickUpJobs       PickUpJob[]
   deliveryJobs     DeliveryJob[]
   orderWorkProcess OrderWorkProcess[]
+  notifications    Notification[]
 
   @@map("orders")
 }
@@ -277,11 +279,11 @@ enum OrderStatus {
   DRIVER_ON_THE_WAY_TO_CUSTOMER
   ARRIVED_AT_CUSTOMER
   DRIVER_ON_THE_WAY_TO_OUTLET
-  ARRIVED_AT_OUTLET
+  ARRIVED_AT_OUTLET // kasi notif ke customer (driver)
   BEING_WASHED
   BEING_IRONED
   BEING_PACKED
-  WAITING_PAYMENT
+  WAITING_PAYMENT // kasi notif user untuk bayar, cek dlu udh byaar kalo ga usah kasi
   READY_FOR_DELIVERY
   BEING_DELIVERED_TO_CUSTOMER
   DELIVERED_TO_CUSTOMER
@@ -308,7 +310,7 @@ model OrderItem {
   materials     String?
   totalPrice    Float
   createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
+  updatedAt     DateTime?   @updatedAt
 
   orderItemDetails OrderItemDetail[]
 
@@ -322,7 +324,7 @@ model OrderItemDetail {
   name        String
   qty         Int
   createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  updatedAt   DateTime? @updatedAt
 
   @@map("orderItemDetails")
 }
@@ -335,7 +337,7 @@ model LaundryItem {
   pricingType PricingType @default(PER_PIECE)
   isActive    Boolean     @default(true)
   createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  updatedAt   DateTime?   @updatedAt
   deletedAt   DateTime?
 
   orderItems OrderItem[]

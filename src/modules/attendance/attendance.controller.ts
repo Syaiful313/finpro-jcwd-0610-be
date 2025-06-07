@@ -1,11 +1,8 @@
-import { NextFunction, Request, Response } from "express";
-import { AttendanceService } from "./attendance.service";
 import { plainToInstance } from "class-transformer";
-import {
-  GetAttendanceHistoryDTO,
-  GetAttendanceReportDTO,
-} from "./dto/attendance.dto";
+import { NextFunction, Request, Response } from "express";
 import { injectable } from "tsyringe";
+import { AttendanceService } from "./attendance.service";
+import { GetAttendanceReportDTO } from "./dto/attendance.dto";
 
 @injectable()
 export class AttendanceController {
