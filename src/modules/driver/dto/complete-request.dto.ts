@@ -1,8 +1,8 @@
 import { IsNotEmpty, IsOptional, IsString } from "class-validator";
 
 export class CompletePickupDto {
-  @IsNotEmpty()
-  readonly pickUpPhotos!: any;
+  // @IsNotEmpty()
+  // readonly pickUpPhotos!: any;
 
   @IsOptional()
   @IsString()

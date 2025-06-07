@@ -13,5 +13,8 @@ export class WorkerService {
     private readonly fileService: CloudinaryService,
   ) {}
 
-  getWorker() {}
+  getWorker = async () => {};
+  processOrder = async () => {};
+  completeOrder = async () => {};
+  bypassRequest = async () => {};
 }

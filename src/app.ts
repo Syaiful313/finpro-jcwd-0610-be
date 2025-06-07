@@ -13,8 +13,9 @@ import { AttendanceRouter } from "./modules/attendance/attendance.router";
 import { DriverRouter } from "./modules/driver/driver.router";
 import { CronService } from "./modules/jobs/cron.service";
 import { WorkerRouter } from "./modules/worker/worker.router";
-
 import { LaundryItemRouter } from "./modules/laundry-item/laundry-item.router";
+import { NotificationRouter } from "./modules/notification/notification.router";
+
 export default class App {
   public app;
 
@@ -41,6 +42,7 @@ export default class App {
     const driverRouter = container.resolve(DriverRouter);
     const laundryItemRouter = container.resolve(LaundryItemRouter);
     const workerRouter = container.resolve(WorkerRouter);
+    const notificationRouter = container.resolve(NotificationRouter);
 
     this.app.get("/", (_, res) => {
       res.send("Welcome");
@@ -53,6 +55,7 @@ export default class App {
     this.app.use("/attendance", attendanceRouter.getRouter());
     this.app.use("/worker", workerRouter.getRouter());
     this.app.use("/laundry-item", laundryItemRouter.getRouter());
+    this.app.use("/notification", notificationRouter.getRouter());
   }
 
   private handleError(): void {
@@ -66,7 +69,7 @@ export default class App {
 
   public start(): void {
     this.app.listen(env().PORT, () => {
-      console.log(`  ➜  [API] Local:   http://localhost:${env().PORT}`);
+      console.log(`  ➜  [🔥] Local:   http://localhost:${env().PORT}`);
     });
   }
 }
