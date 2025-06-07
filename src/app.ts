@@ -11,7 +11,7 @@ import { SampleRouter } from "./modules/sample/sample.router";
 import { OutletRouter } from "./modules/outlet/outlet.router";
 import { AttendanceRouter } from "./modules/attendance/attendance.router";
 import { DriverRouter } from "./modules/driver/driver.router";
-import { CronService } from "./modules/jobs/cron.service";
+// import { CronService } from "./modules/jobs/cron.service";
 import { WorkerRouter } from "./modules/worker/worker.router";
 import { LaundryItemRouter } from "./modules/laundry-item/laundry-item.router";
 import { NotificationRouter } from "./modules/notification/notification.router";
@@ -24,7 +24,7 @@ export default class App {
     this.configure();
     this.routes();
     this.handleError();
-    this.initializeCronJobs();
+    // this.initializeCronJobs();
   }
 
   private configure(): void {
@@ -62,10 +62,10 @@ export default class App {
     this.app.use(errorMiddleware);
   }
 
-  private initializeCronJobs(): void {
-    const cronService = container.resolve(CronService);
-    cronService.initializeJobs();
-  }
+  // private initializeCronJobs(): void {
+  //   const cronService = container.resolve(CronService);
+  //   cronService.initializeJobs();
+  // }
 
   public start(): void {
     this.app.listen(env().PORT, () => {
