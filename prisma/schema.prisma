@@ -32,7 +32,7 @@ model User {
   outletId    Int?
   outlet      Outlet?   @relation(fields: [outletId], references: [id])
   createdAt   DateTime  @default(now())
-  updatedAt   DateTime? @updatedAt
+  updatedAt   DateTime  @updatedAt
   deletedAt   DateTime?
 
   employees Employee[]
@@ -63,7 +63,7 @@ model Notification {
   role        Role?
   isRead      Boolean      @default(false)
   createdAt   DateTime     @default(now())
-  updatedAt   DateTime?
+  updatedAt   DateTime     @updatedAt
   orderId     String?
   Order       Order?       @relation(fields: [orderId], references: [uuid])
 
@@ -92,7 +92,7 @@ model Employee {
   outlet    Outlet    @relation(fields: [outletId], references: [id])
   npwp      String
   createdAt DateTime  @default(now())
-  updatedAt DateTime? @updatedAt
+  updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
   attendances      Attendance[]
@@ -113,7 +113,7 @@ model Attendance {
   clockInAt  DateTime? @default(now())
   clockOutAt DateTime?
   createdAt  DateTime  @default(now())
-  updatedAt  DateTime? @updatedAt
+  updatedAt  DateTime  @updatedAt
 
   @@map("attendances")
 }
@@ -128,7 +128,7 @@ model PickUpJob {
   pickUpScheduleOutlet String
   notes                String?
   status               DriverTaskStatus @default(PENDING)
-  updatedAt            DateTime?        @updatedAt
+  updatedAt            DateTime         @updatedAt
   createdAt            DateTime         @default(now())
 
   @@map("pickUpJobs")
@@ -151,7 +151,7 @@ model DeliveryJob {
   deliveryPhotos String?
   notes          String?
   status         DriverTaskStatus @default(PENDING)
-  updatedAt      DateTime?        @updatedAt
+  updatedAt      DateTime         @updatedAt
   createdAt      DateTime         @default(now())
 
   @@map("deliveryJobs")
@@ -188,7 +188,7 @@ model OrderWorkProcess {
   notes       String?
   completedAt DateTime?
   createdAt   DateTime       @default(now())
-  updatedAt   DateTime?      @updatedAt
+  updatedAt   DateTime       @updatedAt
 
   @@map("orderWorkProcesses")
 }
@@ -207,7 +207,7 @@ model BypassRequest {
   adminNote          String?
   bypassStatus       BypassStatus @default(PENDING)
   createdAt          DateTime     @default(now())
-  updatedAt          DateTime?    @updatedAt
+  updatedAt          DateTime     @updatedAt
 
   orderWorkProcesses OrderWorkProcess[]
 
@@ -229,7 +229,7 @@ model Outlet {
   serviceRadius Float
   isActive      Boolean   @default(true)
   createdAt     DateTime  @default(now())
-  updatedAt     DateTime? @updatedAt
+  updatedAt     DateTime  @updatedAt
   deletedAt     DateTime?
 
   employees   Employee[]
@@ -262,7 +262,7 @@ model Order {
   totalPrice            Float?
   paymentStatus         PaymentStatus @default(WAITING_PAYMENT)
   createdAt             DateTime      @default(now())
-  updatedAt             DateTime?     @updatedAt
+  updatedAt             DateTime      @updatedAt
   // notificationId        Int?
   // notifications         Notification? @relation(fields: [notificationId], references: [id])
 
@@ -311,7 +311,7 @@ model OrderItem {
   materials     String?
   totalPrice    Float
   createdAt     DateTime    @default(now())
-  updatedAt     DateTime?   @updatedAt
+  updatedAt     DateTime    @updatedAt
 
   orderItemDetails OrderItemDetail[]
 
@@ -325,7 +325,7 @@ model OrderItemDetail {
   name        String
   qty         Int
   createdAt   DateTime  @default(now())
-  updatedAt   DateTime? @updatedAt
+  updatedAt   DateTime  @updatedAt
 
   @@map("orderItemDetails")
 }
@@ -338,7 +338,7 @@ model LaundryItem {
   pricingType PricingType @default(PER_PIECE)
   isActive    Boolean     @default(true)
   createdAt   DateTime    @default(now())
-  updatedAt   DateTime?   @updatedAt
+  updatedAt   DateTime    @updatedAt
   deletedAt   DateTime?
 
   orderItems OrderItem[]
