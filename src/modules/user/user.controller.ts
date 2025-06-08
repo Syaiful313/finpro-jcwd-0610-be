@@ -1,11 +1,18 @@
 import { NextFunction, Request, Response } from "express";
 import { injectable } from "tsyringe";
-import { UserService } from "./user.service";
+import { ApiError } from "../../utils/api-error";
 import { UpdateUserDTO } from "./dto/updateUser.dto";
+import { UserService } from "./user.service";
+import { CloudinaryService } from "../cloudinary/cloudinary.service";
+import { CreateUserDTO } from "../admin/dto/create-user.dto";
+import { CreateAddressDTO } from "./dto/createAddress.dto";
 
 @injectable()
 export class UserController {
-  constructor(private readonly userService: UserService) {}
+  constructor(
+    private readonly userService: UserService,
+    private readonly cloudinaryService: CloudinaryService,
+  ) {}
 
   getUser = async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -22,6 +29,44 @@ export class UserController {
       const authUserId = req.user!.id;
       const body = req.body as UpdateUserDTO;
       const result = await this.userService.updateUser(authUserId, body);
+      res.status(200).send(result);
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  uploadProfilePic = async (
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ) => {
+    try {
+      const authUserId = req.user!.id;
+      const file = req.file;
+      if (!file) {
+        throw new ApiError("No file uploaded", 400);
+      }
+      const uploadResult = await this.cloudinaryService.upload(file);
+      const uploadPath = uploadResult.secure_url;
+      const result = await this.userService.uploadProfilePic(
+        authUserId,
+        uploadPath,
+      );
+      res.status(200).send(result);
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  createUserAddress = async (
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ) => {
+    try {
+      const authUserId = req.user!.id;
+      const body = req.body as CreateAddressDTO;
+      const result = await this.userService.createUserAddress(authUserId, body);
       res.status(200).send(result);
     } catch (error) {
       next(error);
