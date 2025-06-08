@@ -12,6 +12,7 @@ import { OutletRouter } from "./modules/outlet/outlet.router";
 import { AttendanceRouter } from "./modules/attendance/attendance.router";
 import { DriverRouter } from "./modules/driver/driver.router";
 import { LaundryItemRouter } from "./modules/laundry-item/laundry-item.router";
+import { UserRouter } from "./modules/user/user.router";
 
 export default class App {
   public app;
@@ -37,6 +38,7 @@ export default class App {
     const attendanceRouter = container.resolve(AttendanceRouter);
     const driverRouter = container.resolve(DriverRouter);
     const laundryItemRouter = container.resolve(LaundryItemRouter);
+    const userRouter = container.resolve(UserRouter);
 
     this.app.get("/", (_, res) => {
       res.send("Welcome");
@@ -48,6 +50,7 @@ export default class App {
     this.app.use("/driver", driverRouter.getRouter());
     this.app.use("/attendance", attendanceRouter.getRouter());
     this.app.use("/laundry-item", laundryItemRouter.getRouter());
+    this.app.use("/user", userRouter.getRouter());
   }
 
   private handleError(): void {
