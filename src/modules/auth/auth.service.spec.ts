@@ -79,6 +79,7 @@ describe("SampleService", () => {
       jest
         .spyOn(passwordService, "hashPassword")
         .mockResolvedValue("hashedPassword");
+      jest.spyOn(mailService, "sendEmail").mockResolvedValue(undefined);
 
       mockCtx.prisma.user.create.mockResolvedValueOnce({
         ...user,
