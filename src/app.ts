@@ -11,7 +11,10 @@ import { SampleRouter } from "./modules/sample/sample.router";
 import { OutletRouter } from "./modules/outlet/outlet.router";
 import { AttendanceRouter } from "./modules/attendance/attendance.router";
 import { DriverRouter } from "./modules/driver/driver.router";
+// import { CronService } from "./modules/jobs/cron.service";
+import { WorkerRouter } from "./modules/worker/worker.router";
 import { LaundryItemRouter } from "./modules/laundry-item/laundry-item.router";
+import { NotificationRouter } from "./modules/notification/notification.router";
 import { UserRouter } from "./modules/user/user.router";
 
 export default class App {
@@ -22,6 +25,7 @@ export default class App {
     this.configure();
     this.routes();
     this.handleError();
+    // this.initializeCronJobs();
   }
 
   private configure(): void {
@@ -38,6 +42,8 @@ export default class App {
     const attendanceRouter = container.resolve(AttendanceRouter);
     const driverRouter = container.resolve(DriverRouter);
     const laundryItemRouter = container.resolve(LaundryItemRouter);
+    const workerRouter = container.resolve(WorkerRouter);
+    const notificationRouter = container.resolve(NotificationRouter);
     const userRouter = container.resolve(UserRouter);
 
     this.app.get("/", (_, res) => {
@@ -49,7 +55,9 @@ export default class App {
     this.app.use("/outlet", outletRouter.getRouter());
     this.app.use("/driver", driverRouter.getRouter());
     this.app.use("/attendance", attendanceRouter.getRouter());
+    this.app.use("/worker", workerRouter.getRouter());
     this.app.use("/laundry-item", laundryItemRouter.getRouter());
+    this.app.use("/notification", notificationRouter.getRouter());
     this.app.use("/user", userRouter.getRouter());
   }
 
@@ -57,9 +65,14 @@ export default class App {
     this.app.use(errorMiddleware);
   }
 
+  // private initializeCronJobs(): void {
+  //   const cronService = container.resolve(CronService);
+  //   cronService.initializeJobs();
+  // }
+
   public start(): void {
     this.app.listen(env().PORT, () => {
-      console.log(`  ➜  [API] Local:   http://localhost:${env().PORT}`);
+      console.log(`  ➜  [🔥] Local:   http://localhost:${env().PORT}`);
     });
   }
 }
