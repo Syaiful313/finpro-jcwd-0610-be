@@ -279,7 +279,9 @@ export class OrderService {
           currentWorker: currentWorkProcess
             ? {
                 id: currentWorkProcess.employee.id,
-                name: `${currentWorkProcess.employee.user.firstName} ${currentWorkProcess.employee.user.lastName}`,
+                name: currentWorkProcess.employee?.user
+                  ? `${currentWorkProcess.employee.user.firstName} ${currentWorkProcess.employee.user.lastName}`
+                  : "Worker tidak tersedia",
                 workerType: currentWorkProcess.workerType,
                 station: this.getStationName(currentWorkProcess.workerType),
                 startedAt: currentWorkProcess.createdAt,
@@ -287,19 +289,27 @@ export class OrderService {
                 hasBypass: !!currentWorkProcess.bypass,
               }
             : null,
-          processHistory: completedProcesses.map((wp) => ({
-            station: this.getStationName(wp.workerType),
-            worker: `${wp.employee.user.firstName} ${wp.employee.user.lastName}`,
-            startedAt: wp.createdAt,
-            completedAt: wp.completedAt,
-            duration: this.calculateDuration(wp.createdAt, wp.completedAt!),
-            notes: wp.notes,
-            hasBypass: !!wp.bypass,
-          })),
+          processHistory: completedProcesses.map((wp) => {
+            const workerName = wp.employee?.user
+              ? `${wp.employee.user.firstName} ${wp.employee.user.lastName}`
+              : "Worker tidak tersedia";
+
+            return {
+              station: this.getStationName(wp.workerType),
+              worker: workerName,
+              startedAt: wp.createdAt,
+              completedAt: wp.completedAt,
+              duration: this.calculateDuration(wp.createdAt, wp.completedAt!),
+              notes: wp.notes,
+              hasBypass: !!wp.bypass,
+            };
+          }),
           pickup: order.pickUpJobs?.[0]
             ? {
                 id: order.pickUpJobs[0].id,
-                driver: `${order.pickUpJobs[0].employee.user.firstName} ${order.pickUpJobs[0].employee.user.lastName}`,
+                driver: order.pickUpJobs[0].employee?.user
+                  ? `${order.pickUpJobs[0].employee.user.firstName} ${order.pickUpJobs[0].employee.user.lastName}`
+                  : "Driver tidak tersedia",
                 status: order.pickUpJobs[0].status,
                 assignedAt: order.pickUpJobs[0].createdAt,
                 lastUpdate: order.pickUpJobs[0].updatedAt,
@@ -308,7 +318,9 @@ export class OrderService {
           delivery: order.deliveryJobs?.[0]
             ? {
                 id: order.deliveryJobs[0].id,
-                driver: `${order.deliveryJobs[0].employee.user.firstName} ${order.deliveryJobs[0].employee.user.lastName}`,
+                driver: order.deliveryJobs[0].employee?.user
+                  ? `${order.deliveryJobs[0].employee.user.firstName} ${order.deliveryJobs[0].employee.user.lastName}`
+                  : "Driver tidak tersedia",
                 status: order.deliveryJobs[0].status,
                 assignedAt: order.deliveryJobs[0].createdAt,
                 lastUpdate: order.deliveryJobs[0].updatedAt,
@@ -408,21 +420,29 @@ export class OrderService {
 
     if (order.pickUpJobs?.[0]) {
       const pickup = order.pickUpJobs[0];
+      const driverName = pickup.employee?.user
+        ? `${pickup.employee.user.firstName} ${pickup.employee.user.lastName}`
+        : "Driver tidak tersedia";
+
       timeline.push({
         event: "Pickup Assigned",
         timestamp: pickup.createdAt,
         status: "COMPLETED",
-        description: `Assigned to driver: ${pickup.employee.user.firstName} ${pickup.employee.user.lastName}`,
+        description: `Assigned to driver: ${driverName}`,
       });
     }
 
     order.orderWorkProcess?.forEach((wp: any) => {
+      const workerName = wp.employee?.user
+        ? `${wp.employee.user.firstName} ${wp.employee.user.lastName}`
+        : "Worker tidak tersedia";
+
       timeline.push({
         event: `${this.getStationName(wp.workerType)} Started`,
         timestamp: wp.createdAt,
         status: wp.completedAt ? "COMPLETED" : "IN_PROGRESS",
-        description: `Handled by: ${wp.employee.user.firstName} ${wp.employee.user.lastName}`,
-        worker: wp.employee.user.firstName + " " + wp.employee.user.lastName,
+        description: `Handled by: ${workerName}`,
+        worker: workerName,
         notes: wp.notes,
         hasBypass: !!wp.bypass,
       });
@@ -439,11 +459,15 @@ export class OrderService {
 
     if (order.deliveryJobs?.[0]) {
       const delivery = order.deliveryJobs[0];
+      const driverName = delivery.employee?.user
+        ? `${delivery.employee.user.firstName} ${delivery.employee.user.lastName}`
+        : "Driver tidak tersedia";
+
       timeline.push({
         event: "Delivery Assigned",
         timestamp: delivery.createdAt,
         status: delivery.status === "COMPLETED" ? "COMPLETED" : "IN_PROGRESS",
-        description: `Assigned to driver: ${delivery.employee.user.firstName} ${delivery.employee.user.lastName}`,
+        description: `Assigned to driver: ${driverName}`,
       });
     }
 
