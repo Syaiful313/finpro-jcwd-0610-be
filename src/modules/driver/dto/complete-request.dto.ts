@@ -10,9 +10,6 @@ export class CompletePickupDto {
 }
 
 export class CompleteDeliveryDto {
-  @IsNotEmpty()
-  readonly deliveryPhotos!: any;
-
   @IsOptional()
   @IsString()
   readonly notes?: string;

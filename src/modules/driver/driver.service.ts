@@ -395,7 +395,7 @@ export class DriverService {
       // Create notification for customer
       await tx.notification.create({
         data: {
-          orderUuid: pickUpJob.order.uuid,
+          orderId: pickUpJob.order.uuid,
           message: notificationMessage,
           notifType: NotifType.NEW_PICKUP_REQUEST,
           orderStatus: pickUpJob.order.orderStatus,
@@ -490,7 +490,7 @@ export class DriverService {
       // Create notification for customer
       await tx.notification.create({
         data: {
-          orderUuid: deliveryJob.order.uuid,
+          orderId: deliveryJob.order.uuid,
           message: notificationMessage,
           notifType: NotifType.NEW_PICKUP_REQUEST,
           orderStatus: deliveryJob.order.orderStatus,
@@ -515,7 +515,9 @@ export class DriverService {
     if (!employee || employee.user.role !== "DRIVER") {
       throw new ApiError("Driver not found", 404);
     }
-
+    console.log("pickupJobId:", pickupJobId, typeof pickupJobId);
+    console.log("employee.id:", employee.id, typeof employee.id);
+    console.log("DriverTaskStatus.ASSIGNED:", DriverTaskStatus.ASSIGNED);
     const pickUpJob = await this.prisma.pickUpJob.findFirst({
       where: {
         id: pickupJobId,
@@ -560,7 +562,7 @@ export class DriverService {
       // Create notification for customer
       await tx.notification.create({
         data: {
-          orderUuid: pickUpJob.order.uuid,
+          orderId: pickUpJob.order.uuid,
           message: notificationMessages.CUSTOMER,
           notifType: NotifType.NEW_PICKUP_REQUEST,
           orderStatus: OrderStatus.DRIVER_ON_THE_WAY_TO_CUSTOMER,
@@ -572,7 +574,7 @@ export class DriverService {
       // Create notification for driver
       await tx.notification.create({
         data: {
-          orderUuid: pickUpJob.order.uuid,
+          orderId: pickUpJob.order.uuid,
           message: notificationMessages.DRIVER,
           notifType: NotifType.NEW_PICKUP_REQUEST,
           orderStatus: OrderStatus.DRIVER_ON_THE_WAY_TO_CUSTOMER,
@@ -584,7 +586,7 @@ export class DriverService {
       // Create notification for outlet admin
       await tx.notification.create({
         data: {
-          orderUuid: pickUpJob.order.uuid,
+          orderId: pickUpJob.order.uuid,
           message: notificationMessages.OUTLET_ADMIN,
           notifType: NotifType.NEW_PICKUP_REQUEST,
           orderStatus: OrderStatus.DRIVER_ON_THE_WAY_TO_CUSTOMER,
@@ -667,7 +669,7 @@ export class DriverService {
       // Create notification for customer
       await tx.notification.create({
         data: {
-          orderUuid: pickUpJob.order.uuid,
+          orderId: pickUpJob.order.uuid,
           message: notificationMessages.CUSTOMER,
           notifType: NotifType.PICKUP_COMPLETED,
           orderStatus: OrderStatus.ARRIVED_AT_OUTLET,
@@ -679,7 +681,7 @@ export class DriverService {
       // Create notification for driver
       await tx.notification.create({
         data: {
-          orderUuid: pickUpJob.order.uuid,
+          orderId: pickUpJob.order.uuid,
           message: notificationMessages.DRIVER,
           notifType: NotifType.PICKUP_COMPLETED,
           orderStatus: OrderStatus.ARRIVED_AT_OUTLET,
@@ -691,7 +693,7 @@ export class DriverService {
       // Create notification for outlet admin
       await tx.notification.create({
         data: {
-          orderUuid: pickUpJob.order.uuid,
+          orderId: pickUpJob.order.uuid,
           message: notificationMessages.OUTLET_ADMIN,
           notifType: NotifType.PICKUP_COMPLETED,
           orderStatus: OrderStatus.ARRIVED_AT_OUTLET,
@@ -761,7 +763,7 @@ export class DriverService {
       // Create notification for customer
       await tx.notification.create({
         data: {
-          orderUuid: deliveryJob.order.uuid,
+          orderId: deliveryJob.order.uuid,
           message: notificationMessages.CUSTOMER,
           notifType: NotifType.NEW_DELIVERY_REQUEST,
           orderStatus: OrderStatus.BEING_DELIVERED_TO_CUSTOMER,
@@ -773,7 +775,7 @@ export class DriverService {
       // Create notification for driver
       await tx.notification.create({
         data: {
-          orderUuid: deliveryJob.order.uuid,
+          orderId: deliveryJob.order.uuid,
           message: notificationMessages.DRIVER,
           notifType: NotifType.NEW_DELIVERY_REQUEST,
           orderStatus: OrderStatus.BEING_DELIVERED_TO_CUSTOMER,
@@ -785,7 +787,7 @@ export class DriverService {
       // Create notification for outlet admin
       await tx.notification.create({
         data: {
-          orderUuid: deliveryJob.order.uuid,
+          orderId: deliveryJob.order.uuid,
           message: notificationMessages.OUTLET_ADMIN,
           notifType: NotifType.NEW_DELIVERY_REQUEST,
           orderStatus: OrderStatus.BEING_DELIVERED_TO_CUSTOMER,
@@ -868,7 +870,7 @@ export class DriverService {
       // Create notification for customer
       await tx.notification.create({
         data: {
-          orderUuid: deliveryJob.order.uuid,
+          orderId: deliveryJob.order.uuid,
           message: notificationMessages.CUSTOMER,
           notifType: NotifType.DELIVERY_COMPLETED,
           orderStatus: OrderStatus.DELIVERED_TO_CUSTOMER,
@@ -880,7 +882,7 @@ export class DriverService {
       // Create notification for driver
       await tx.notification.create({
         data: {
-          orderUuid: deliveryJob.order.uuid,
+          orderId: deliveryJob.order.uuid,
           message: notificationMessages.DRIVER,
           notifType: NotifType.DELIVERY_COMPLETED,
           orderStatus: OrderStatus.DELIVERED_TO_CUSTOMER,
@@ -892,7 +894,7 @@ export class DriverService {
       // Create notification for outlet admin
       await tx.notification.create({
         data: {
-          orderUuid: deliveryJob.order.uuid,
+          orderId: deliveryJob.order.uuid,
           message: notificationMessages.OUTLET_ADMIN,
           notifType: NotifType.DELIVERY_COMPLETED,
           orderStatus: OrderStatus.DELIVERED_TO_CUSTOMER,
