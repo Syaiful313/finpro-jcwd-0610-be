@@ -77,8 +77,16 @@ export class UserService {
   };
 
   createUserAddress = async (authUserId: number, body: CreateAddressDTO) => {
-    const { addressName, addressLine, district, city, province, postalCode } =
-      body;
+    const {
+      addressName,
+      addressLine,
+      district,
+      city,
+      province,
+      postalCode,
+      latitude,
+      longitude,
+    } = body;
     const user = await this.prisma.user.findUnique({
       where: { id: authUserId },
     });
@@ -96,8 +104,8 @@ export class UserService {
         city,
         province,
         postalCode,
-        latitude: 40.73061,
-        longitude: -74.006,
+        latitude,
+        longitude,
       },
     });
 
