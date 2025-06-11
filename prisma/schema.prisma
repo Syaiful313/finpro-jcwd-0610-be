@@ -221,16 +221,18 @@ enum BypassStatus {
 }
 
 model Outlet {
-  id            Int       @id @default(autoincrement())
-  outletName    String
-  address       String
-  latitude      Float
-  longitude     Float
-  serviceRadius Float
-  isActive      Boolean   @default(true)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  deletedAt     DateTime?
+  id              Int       @id @default(autoincrement())
+  outletName      String
+  address         String
+  latitude        Float
+  longitude       Float
+  serviceRadius   Float
+  deliveryBaseFee Float     @default(5000)
+  deliveryPerKm   Float     @default(2000)
+  isActive        Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
 
   employees   Employee[]
   orders      Order[]

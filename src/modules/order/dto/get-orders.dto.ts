@@ -1,12 +1,12 @@
+import { OrderStatus } from "@prisma/client";
 import {
-  IsOptional,
-  IsString,
-  IsNumberString,
   IsDateString,
   IsEnum,
+  IsNumberString,
+  IsOptional,
+  IsString,
 } from "class-validator";
 import { PaginationQueryParams } from "../../pagination/dto/pagination.dto";
-import { OrderStatus } from "@prisma/client";
 
 export class GetOrdersDTO extends PaginationQueryParams {
   @IsOptional()
@@ -27,7 +27,7 @@ export class GetOrdersDTO extends PaginationQueryParams {
       message: "Outlet ID harus berupa angka",
     },
   )
-  readonly outletId?: string; // Only for Super Admin
+  readonly outletId?: string;
 
   @IsOptional()
   @IsNumberString(
@@ -36,7 +36,7 @@ export class GetOrdersDTO extends PaginationQueryParams {
       message: "Employee ID harus berupa angka",
     },
   )
-  readonly employeeId?: string; // For tracking by worker/driver
+  readonly employeeId?: string;
 
   @IsOptional()
   @IsDateString(
@@ -45,7 +45,7 @@ export class GetOrdersDTO extends PaginationQueryParams {
       message: "Format tanggal mulai harus YYYY-MM-DD",
     },
   )
-  readonly startDate?: string; // For date range filtering
+  readonly startDate?: string;
 
   @IsOptional()
   @IsDateString(
@@ -54,5 +54,5 @@ export class GetOrdersDTO extends PaginationQueryParams {
       message: "Format tanggal akhir harus YYYY-MM-DD",
     },
   )
-  readonly endDate?: string; // For date range filtering
+  readonly endDate?: string;
 }
