@@ -370,7 +370,7 @@ export class OrderService {
         uuid: true,
         orderNumber: true,
         orderStatus: true,
-        address_line: true,
+        addressLine: true,
         district: true,
         city: true,
         province: true,
@@ -648,7 +648,7 @@ export class OrderService {
       outlet: order.outlet,
 
       deliveryAddress: {
-        fullAddress: order.address_line,
+        fullAddress: order.addressLine,
         district: order.district,
         city: order.city,
         province: order.province,
@@ -1215,7 +1215,7 @@ export class OrderService {
           orderStatus: true,
           scheduledPickupTime: true,
           actualPickupTime: true,
-          address_line: true,
+          addressLine: true,
           district: true,
           city: true,
           province: true,
@@ -1310,7 +1310,7 @@ export class OrderService {
           phoneNumber: order.user.phoneNumber,
         },
         address: {
-          fullAddress: order.address_line,
+          fullAddress: order.addressLine,
           district: order.district,
           city: order.city,
           province: order.province,
