@@ -63,7 +63,7 @@ model Notification {
   role        Role?
   isRead      Boolean      @default(false)
   createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  updatedAt   DateTime?    @updatedAt
   orderId     String?
   Order       Order?       @relation(fields: [orderId], references: [uuid])
 
@@ -125,7 +125,7 @@ model PickUpJob {
   orderId              String
   order                Order            @relation(fields: [orderId], references: [uuid])
   pickUpPhotos         String?
-  pickUpScheduleOutlet String
+  pickUpScheduleOutlet DateTime?
   notes                String?
   status               DriverTaskStatus @default(PENDING)
   updatedAt            DateTime         @updatedAt
@@ -221,16 +221,18 @@ enum BypassStatus {
 }
 
 model Outlet {
-  id            Int       @id @default(autoincrement())
-  outletName    String
-  address       String
-  latitude      Float
-  longitude     Float
-  serviceRadius Float
-  isActive      Boolean   @default(true)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  deletedAt     DateTime?
+  id              Int       @id @default(autoincrement())
+  outletName      String
+  address         String
+  latitude        Float
+  longitude       Float
+  serviceRadius   Float
+  deliveryBaseFee Float     @default(5000)
+  deliveryPerKm   Float     @default(2000)
+  isActive        Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
 
   employees   Employee[]
   orders      Order[]
@@ -246,11 +248,13 @@ model Order {
   user                  User          @relation(fields: [userId], references: [id])
   outletId              Int
   outlet                Outlet        @relation(fields: [outletId], references: [id])
-  address_line          String
+  addressLine           String
   district              String
   city                  String
   province              String
   postalCode            String
+  latitude              Float?
+  longitude             Float?
   orderNumber           String
   orderStatus           OrderStatus
   scheduledPickupTime   DateTime?
@@ -263,8 +267,6 @@ model Order {
   paymentStatus         PaymentStatus @default(WAITING_PAYMENT)
   createdAt             DateTime      @default(now())
   updatedAt             DateTime      @updatedAt
-  // notificationId        Int?
-  // notifications         Notification? @relation(fields: [notificationId], references: [id])
 
   orderItems       OrderItem[]
   pickUpJobs       PickUpJob[]

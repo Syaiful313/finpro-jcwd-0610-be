@@ -28,15 +28,11 @@ export class NotificationService {
       throw new Error("Employee not found for this user");
     }
 
-    // LOGIKA DINAMIS:
-    // 1. Notifikasi untuk semua driver (job belum di-assign ke siapa-siapa)
-    // 2. Notifikasi untuk driver spesifik (job sudah di-assign ke driver ini)
     const whereClause: Prisma.NotificationWhereInput = {
       AND: [
-        { role: "DRIVER" }, // Pastikan role adalah DRIVER
+        { role: "DRIVER" },
         {
           OR: [
-            // Case 1: Pickup job belum di-assign (employeeId = null) - untuk semua driver
             {
               Order: {
                 pickUpJobs: {
@@ -46,7 +42,6 @@ export class NotificationService {
                 },
               },
             },
-            // Case 2: Pickup job sudah di-assign khusus untuk driver ini
             {
               Order: {
                 pickUpJobs: {
@@ -56,7 +51,6 @@ export class NotificationService {
                 },
               },
             },
-            // Case 3: Delivery job belum di-assign (employeeId = null) - untuk semua driver
             {
               Order: {
                 deliveryJobs: {
@@ -66,7 +60,6 @@ export class NotificationService {
                 },
               },
             },
-            // Case 4: Delivery job sudah di-assign khusus untuk driver ini
             {
               Order: {
                 deliveryJobs: {
@@ -98,7 +91,7 @@ export class NotificationService {
             uuid: true,
             orderNumber: true,
             orderStatus: true,
-            address_line: true,
+            addressLine: true,
             district: true,
             city: true,
             user: {
@@ -108,7 +101,6 @@ export class NotificationService {
                 phoneNumber: true,
               },
             },
-            // Include job info untuk mengetahui status assignment
             pickUpJobs: {
               select: {
                 id: true,
@@ -141,4 +133,9 @@ export class NotificationService {
       }),
     };
   };
+
+  getWorkerNotifications = async (
+    authUserId: number,
+    dto: GetNotificationsDTO,
+  ) => {};
 }
