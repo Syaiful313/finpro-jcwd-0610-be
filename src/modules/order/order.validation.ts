@@ -31,7 +31,7 @@ export class OrderValidation {
         totalWeight: true,
         totalPrice: true,
         paymentStatus: true,
-        address_line: true,
+        addressLine: true,
         district: true,
         city: true,
         province: true,
@@ -347,7 +347,7 @@ export class OrderValidation {
       },
 
       address: {
-        fullAddress: order.address_line,
+        fullAddress: order.addressLine,
         district: order.district,
         city: order.city,
         province: order.province,
