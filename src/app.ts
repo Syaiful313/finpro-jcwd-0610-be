@@ -15,6 +15,9 @@ import { DriverRouter } from "./modules/driver/driver.router";
 import { WorkerRouter } from "./modules/worker/worker.router";
 import { LaundryItemRouter } from "./modules/laundry-item/laundry-item.router";
 import { NotificationRouter } from "./modules/notification/notification.router";
+import { UserRouter } from "./modules/user/user.router";
+import { OrderRouter } from "./modules/order/order.router";
+import { EmployeeRouter } from "./modules/employee/employee.router";
 
 export default class App {
   public app;
@@ -43,6 +46,9 @@ export default class App {
     const laundryItemRouter = container.resolve(LaundryItemRouter);
     const workerRouter = container.resolve(WorkerRouter);
     const notificationRouter = container.resolve(NotificationRouter);
+    const userRouter = container.resolve(UserRouter);
+    const orderRouter = container.resolve(OrderRouter);
+    const employeeRouter = container.resolve(EmployeeRouter);
 
     this.app.get("/", (_, res) => {
       res.send("Welcome");
@@ -56,6 +62,9 @@ export default class App {
     this.app.use("/worker", workerRouter.getRouter());
     this.app.use("/laundry-item", laundryItemRouter.getRouter());
     this.app.use("/notification", notificationRouter.getRouter());
+    this.app.use("/user", userRouter.getRouter());
+    this.app.use("/orders", orderRouter.getRouter());
+    this.app.use("/employees", employeeRouter.getRouter());
   }
 
   private handleError(): void {

@@ -1,3 +1,4 @@
+process.setMaxListeners(0);
 import App from "./app";
 
 const main = () => {
