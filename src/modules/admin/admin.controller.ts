@@ -7,6 +7,7 @@ import { AdminService } from "./admin.service";
 import { CreateUserDTO } from "./dto/create-user.dto";
 import { GetUsersDTO } from "./dto/get-users.dto";
 import { UpdateUserDTO } from "./dto/update-user.dto";
+import { validate } from "class-validator";
 
 @injectable()
 export class AdminController {
@@ -56,9 +57,17 @@ export class AdminController {
     try {
       const files = req.files as { [fieldname: string]: Express.Multer.File[] };
       const profile = files.profile?.[0];
-      const body = req.body as CreateUserDTO;
+      const bodyDto = plainToInstance(CreateUserDTO, req.body);
+      const validationErrors = await validate(bodyDto);
 
-      const result = await this.adminService.createUser(body, profile);
+      if (validationErrors.length > 0) {
+        const errorMessages = validationErrors
+          .map((error) => Object.values(error.constraints || {}).join(", "))
+          .join("; ");
+        throw new ApiError(`Validation failed: ${errorMessages}`, 400);
+      }
+
+      const result = await this.adminService.createUser(bodyDto, profile);
 
       res.status(201).json(result);
     } catch (error) {
