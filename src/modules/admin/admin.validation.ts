@@ -18,15 +18,19 @@ export class AdminValidation {
     targetRole: Role,
     targetOutletId?: number,
   ): Promise<number | undefined> => {
-    if (currentUser.role === "ADMIN") {
-      if (targetRole === "ADMIN") {
+    if (currentUser.role === Role.ADMIN) {
+      if (targetRole === Role.ADMIN) {
         throw new ApiError("Admin tidak bisa membuat akun admin lain", 403);
       }
       return targetOutletId;
     }
 
-    if (currentUser.role === "OUTLET_ADMIN") {
-      const allowedRoles: Role[] = ["OUTLET_ADMIN", "WORKER", "DRIVER"];
+    if (currentUser.role === Role.OUTLET_ADMIN) {
+      const allowedRoles: Role[] = [
+        Role.OUTLET_ADMIN,
+        Role.WORKER,
+        Role.DRIVER,
+      ];
 
       if (!allowedRoles.includes(targetRole)) {
         throw new ApiError(
@@ -36,12 +40,12 @@ export class AdminValidation {
       }
 
       const employeeData = await this.prisma.employee.findFirst({
-        where: { userId: currentUser.id },
+        where: { userId: currentUser.id, deletedAt: null },
         select: { outletId: true },
       });
 
       if (!employeeData) {
-        throw new ApiError("Data employee outlet admin tidak ditemukan", 400);
+        throw new ApiError("Data employee outlet admin tidak ditemukan", 404);
       }
 
       if (targetOutletId && targetOutletId !== employeeData.outletId) {
@@ -61,30 +65,35 @@ export class AdminValidation {
     currentUser: CurrentUser,
     targetUserId: number,
   ): Promise<void> => {
-    if (currentUser.role === "ADMIN") {
+    if (currentUser.id === targetUserId) {
+      throw new ApiError("Anda tidak bisa menghapus akun sendiri", 400);
+    }
+
+    if (currentUser.role === Role.ADMIN) {
       return;
     }
 
-    if (currentUser.role === "OUTLET_ADMIN") {
+    if (currentUser.role === Role.OUTLET_ADMIN) {
       const currentUserEmployee = await this.prisma.employee.findFirst({
-        where: { userId: currentUser.id },
+        where: { userId: currentUser.id, deletedAt: null },
         select: { outletId: true },
       });
 
       if (!currentUserEmployee) {
-        throw new ApiError("Data outlet admin tidak ditemukan", 400);
+        throw new ApiError("Data outlet admin tidak ditemukan", 404);
       }
 
       const targetUser = await this.prisma.user.findUnique({
         where: { id: targetUserId },
         include: {
           employees: {
+            where: { deletedAt: null },
             select: { outletId: true },
           },
         },
       });
 
-      if (!targetUser) {
+      if (!targetUser || targetUser.deletedAt) {
         throw new ApiError("User tidak ditemukan", 404);
       }
 
@@ -96,7 +105,7 @@ export class AdminValidation {
         );
       }
 
-      if (targetUser.role === "ADMIN" || targetUser.role === "OUTLET_ADMIN") {
+      if (targetUser.role === Role.ADMIN) {
         throw new ApiError("Anda tidak bisa menghapus user admin", 403);
       }
 
@@ -111,30 +120,39 @@ export class AdminValidation {
     targetUserId: number,
     newRole?: string,
   ): Promise<void> => {
-    if (currentUser.role === "ADMIN") {
+    if (
+      currentUser.id === targetUserId &&
+      newRole &&
+      newRole !== currentUser.role
+    ) {
+      throw new ApiError("Anda tidak bisa mengubah role akun sendiri", 400);
+    }
+
+    if (currentUser.role === Role.ADMIN) {
       return;
     }
 
-    if (currentUser.role === "OUTLET_ADMIN") {
+    if (currentUser.role === Role.OUTLET_ADMIN) {
       const currentUserEmployee = await this.prisma.employee.findFirst({
-        where: { userId: currentUser.id },
+        where: { userId: currentUser.id, deletedAt: null },
         select: { outletId: true },
       });
 
       if (!currentUserEmployee) {
-        throw new ApiError("Data outlet admin tidak ditemukan", 400);
+        throw new ApiError("Data outlet admin tidak ditemukan", 404);
       }
 
       const targetUser = await this.prisma.user.findUnique({
         where: { id: targetUserId },
         include: {
           employees: {
+            where: { deletedAt: null },
             select: { outletId: true },
           },
         },
       });
 
-      if (!targetUser) {
+      if (!targetUser || targetUser.deletedAt) {
         throw new ApiError("User tidak ditemukan", 404);
       }
 
@@ -146,7 +164,7 @@ export class AdminValidation {
         );
       }
 
-      if (targetUser.role === "ADMIN" || targetUser.role === "OUTLET_ADMIN") {
+      if (targetUser.role === Role.ADMIN) {
         throw new ApiError("Anda tidak bisa mengupdate user admin", 403);
       }
 
@@ -154,7 +172,7 @@ export class AdminValidation {
         throw new ApiError("Anda tidak bisa mengubah role ke admin", 403);
       }
 
-      if (newRole && !["WORKER", "DRIVER"].includes(newRole)) {
+      if (newRole && newRole !== "WORKER" && newRole !== "DRIVER") {
         throw new ApiError(
           "Anda hanya bisa set role ke WORKER atau DRIVER",
           403,
@@ -178,35 +196,45 @@ export class AdminValidation {
     const { email, phoneNumber, role, profile, npwp, targetOutletId } = data;
 
     const existingUser = await this.prisma.user.findFirst({
-      where: { email },
+      where: { email, deletedAt: null },
     });
 
     if (existingUser) {
-      throw new ApiError("User dengan email ini sudah ada", 400);
+      throw new ApiError(`User dengan email ${email} sudah terdaftar`, 400);
     }
 
     const existingPhone = await this.prisma.user.findFirst({
-      where: { phoneNumber },
+      where: { phoneNumber, deletedAt: null },
     });
 
     if (existingPhone) {
-      throw new ApiError("User dengan nomor telepon ini sudah ada", 400);
+      throw new ApiError(`Nomor telepon ${phoneNumber} sudah digunakan`, 400);
     }
 
-    const rolesRequiringProfile: Role[] = ["OUTLET_ADMIN", "WORKER", "DRIVER"];
-    if (rolesRequiringProfile.includes(role) && !profile) {
-      throw new ApiError(`Profile picture wajib untuk role ${role}`, 400);
+    const rolesRequiringProfile: Role[] = [
+      Role.OUTLET_ADMIN,
+      Role.WORKER,
+      Role.DRIVER,
+    ];
+    if (rolesRequiringProfile.includes(role)) {
+      if (!profile) {
+        throw new ApiError(`Foto profil wajib untuk role ${role}`, 400);
+      }
+
+      await this.validateProfileFile(profile);
     }
 
-    const employeeRoles: Role[] = ["OUTLET_ADMIN", "WORKER", "DRIVER"];
+    const employeeRoles: Role[] = [Role.OUTLET_ADMIN, Role.WORKER, Role.DRIVER];
     if (employeeRoles.includes(role)) {
       if (!targetOutletId) {
-        throw new ApiError(`Outlet ID wajib untuk role ${role}`, 400);
+        throw new ApiError(`Outlet wajib dipilih untuk role ${role}`, 400);
       }
 
       if (!npwp) {
-        throw new ApiError(`NPWP wajib untuk role ${role}`, 400);
+        throw new ApiError(`NPWP wajib diisi untuk role ${role}`, 400);
       }
+
+      await this.validateOutlet(targetOutletId);
     }
   };
 
@@ -232,7 +260,7 @@ export class AdminValidation {
       });
 
       if (emailExists) {
-        throw new ApiError("Email sudah digunakan", 400);
+        throw new ApiError(`Email ${email} sudah digunakan user lain`, 400);
       }
     }
 
@@ -246,12 +274,11 @@ export class AdminValidation {
       });
 
       if (phoneExists) {
-        throw new ApiError("Nomor telepon sudah digunakan", 400);
+        throw new ApiError(`Nomor telepon ${phoneNumber} sudah digunakan`, 400);
       }
     }
 
-    const newRoleRequiresEmployeeData =
-      role && ["OUTLET_ADMIN", "WORKER", "DRIVER"].includes(role);
+    const newRoleRequiresEmployeeData = role && this.isEmployeeRoleString(role);
 
     if (newRoleRequiresEmployeeData) {
       if (!npwp) {
@@ -261,33 +288,40 @@ export class AdminValidation {
       if (!outletId) {
         throw new ApiError(`Outlet wajib untuk role ${role}`, 400);
       }
+
+      await this.validateOutlet(Number(outletId));
     }
   };
 
   validateOutlet = async (outletId: number): Promise<void> => {
     if (isNaN(outletId) || outletId <= 0) {
-      throw new Error("Outlet ID tidak valid");
+      throw new ApiError("Outlet ID tidak valid", 400);
     }
 
     const outletExists = await this.prisma.outlet.findUnique({
       where: { id: outletId },
-      select: { id: true, isActive: true },
+      select: { id: true, isActive: true, deletedAt: true },
     });
 
-    if (!outletExists) {
-      throw new Error("Outlet tidak ditemukan");
+    if (!outletExists || outletExists.deletedAt) {
+      throw new ApiError("Outlet tidak ditemukan", 404);
     }
 
     if (!outletExists.isActive) {
-      throw new Error("Outlet tidak aktif");
+      throw new ApiError("Outlet tidak aktif", 400);
     }
   };
 
   validateUserExists = async (userId: number): Promise<any> => {
+    if (isNaN(userId) || userId <= 0) {
+      throw new ApiError("User ID tidak valid", 400);
+    }
+
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       include: {
         employees: {
+          where: { deletedAt: null },
           select: { id: true, outletId: true, npwp: true },
         },
       },
@@ -304,12 +338,36 @@ export class AdminValidation {
     return user;
   };
 
-  validateNotSelfDeletion = (
-    currentUserId: number,
-    targetUserId: number,
-  ): void => {
-    if (currentUserId === targetUserId) {
-      throw new ApiError("Anda tidak bisa menghapus akun sendiri", 400);
+  private validateProfileFile = async (
+    file: Express.Multer.File,
+  ): Promise<void> => {
+    const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/gif"];
+    const maxSize = 1 * 1024 * 1024; // 1MB
+
+    if (!allowedTypes.includes(file.mimetype)) {
+      throw new ApiError(
+        "Format file tidak didukung. Gunakan JPG, JPEG, PNG, atau GIF",
+        400,
+      );
+    }
+
+    if (file.size > maxSize) {
+      throw new ApiError("Ukuran file maksimal 1MB", 400);
     }
   };
+
+  validateNotSelfAction = (
+    currentUserId: number,
+    targetUserId: number,
+    action: string,
+  ): void => {
+    if (currentUserId === targetUserId) {
+      throw new ApiError(`Anda tidak bisa ${action} akun sendiri`, 400);
+    }
+  };
+
+  // Helper methods for role checking
+  private isEmployeeRoleString(role: string): boolean {
+    return role === "OUTLET_ADMIN" || role === "WORKER" || role === "DRIVER";
+  }
 }
