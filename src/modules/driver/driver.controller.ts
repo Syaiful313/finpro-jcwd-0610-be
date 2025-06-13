@@ -13,27 +13,24 @@ export class DriverController {
   getDriverJobs = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const authUserId = req.user?.id;
-      const { type = "all", ...queryParams } = req.query;
-      const query = plainToInstance(GetDriverDTO, queryParams);
+      const queryWithStatus = {
+        ...req.query,
+        status: req.query.type,
+      };
 
-      const status = type as string;
-      if (!["active", "completed", "all"].includes(status)) {
-        res.status(400).send({
-          error: "Invalid type parameter. Must be active, completed, or all",
-        });
-        return;
-      }
+      const queryDto = plainToInstance(GetDriverDTO, queryWithStatus);
 
       const result = await this.driverService.getDriverJobs(
-        Number(authUserId), // req.user?.id,
-        query,
-        status as "active" | "completed" | "all",
+        Number(authUserId),
+        queryDto,
       );
+
       res.status(200).send(result);
     } catch (error) {
       next(error);
     }
   };
+
   getAvailableRequests = async (
     req: Request,
     res: Response,
@@ -130,7 +127,7 @@ export class DriverController {
       console.log("pickUpPhotos:", pickUpPhotos ? "File exists" : "No file");
       const body = req.body as CompletePickupDto;
       const result = await this.driverService.completePickUp(
-        Number(authUserId), // req.user?.id,
+        Number(authUserId),
         pickupJobId,
         body,
         pickUpPhotos,
@@ -168,11 +165,26 @@ export class DriverController {
       if (!Boolean(deliveryPhotos))
         throw new ApiError("Image is required", 400);
       const body = req.body as CompletePickupDto;
+
       const result = await this.driverService.completeDelivery(
         Number(authUserId), // req.user?.id,
         deliveryJobId,
         body,
         deliveryPhotos,
+      );
+      res.status(200).send(result);
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  getOrderDetail = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const authUserId = req.user?.id;
+      const { orderUuid } = req.params;
+      const result = await this.driverService.getOrderDetail(
+        Number(authUserId), // req.user?.id,
+        orderUuid,
       );
       res.status(200).send(result);
     } catch (error) {

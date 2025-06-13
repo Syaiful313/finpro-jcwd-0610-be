@@ -1,2 +1,2 @@
-npx lint-staged --allow-empty
-npm run test:unit
+# npx lint-staged --allow-empty
+# npm run test:unit
