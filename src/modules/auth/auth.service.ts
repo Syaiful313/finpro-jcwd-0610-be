@@ -9,10 +9,11 @@ import { PasswordService } from "./password.service";
 import { TokenService } from "./token.service";
 import { MailService } from "../mail/mail.service";
 import { VerificationDTO } from "./dto/verification.dto";
-import { GoogleAuthDTO } from "./dto/googleAuth";
+import { GoogleAuthDTO } from "./dto/googleAuth.dto";
 import { auth, OAuth2Client } from "google-auth-library";
-import { ForgotPasswordDTO } from "./dto/forgotPassword";
-import { ResetPasswordDTO } from "./dto/resetPassword";
+import { ForgotPasswordDTO } from "./dto/forgotPassword.dto";
+import { ResetPasswordDTO } from "./dto/resetPassword.dto";
+import { ChangePasswordDTO } from "./dto/changePassword.dto";
 
 @injectable()
 export class AuthService {
@@ -91,12 +92,20 @@ export class AuthService {
 
   register = async (body: RegisterDTO) => {
     const { firstName, lastName, email, phoneNumber } = body;
-    const existingUser = await this.prisma.user.findFirst({
+    const existingUserByEmail = await this.prisma.user.findFirst({
       where: { email },
     });
 
-    if (existingUser) {
-      throw new ApiError("Email already exist", 400);
+    if (existingUserByEmail) {
+      throw new ApiError("Email already exists", 400);
+    }
+
+    const existingUserByPhone = await this.prisma.user.findFirst({
+      where: { phoneNumber },
+    });
+
+    if (existingUserByPhone) {
+      throw new ApiError("Phone number already exists", 400);
     }
 
     const newUser = await this.prisma.user.create({
@@ -207,6 +216,7 @@ export class AuthService {
     const existingUser = await this.prisma.user.findFirst({
       where: { email },
     });
+
     if (!existingUser) {
       throw new ApiError("Email is not registered", 400);
     }
@@ -253,5 +263,102 @@ export class AuthService {
     return {
       message: "Password reset successfully",
     };
+  };
+
+  resendEmailVerif = async (body: ForgotPasswordDTO) => {
+    const { email } = body;
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (!user) {
+      throw new ApiError("User not found", 404);
+    }
+
+    if (user.isVerified) {
+      throw new ApiError("User is already verified", 400);
+    }
+
+    const verificationPayload = { id: user.id, email: user.email };
+    const emailVerificationToken = this.tokenService.generateToken(
+      verificationPayload,
+      process.env.JWT_SECRET_KEY_VERIFICATION as string,
+      { expiresIn: "15m" },
+    );
+
+    const verificationLink = `${process.env.FRONTEND_URL}/reverify?token=${emailVerificationToken}`;
+
+    await this.mailService.sendVerificationEmailOnly(
+      user.email,
+      verificationLink,
+    );
+
+    return { message: "Verification email sent successfully" };
+  };
+
+  verifyEmail = async (authUserId: number) => {
+    const existingUser = await this.prisma.user.findUnique({
+      where: { id: authUserId },
+    });
+
+    if (!existingUser || existingUser.isVerified) {
+      throw new ApiError("Invalid or already verified user/token", 400);
+    }
+
+    const verifiedUser = await this.prisma.user.update({
+      where: { id: authUserId },
+      data: {
+        isVerified: true,
+      },
+      select: prismaExclude("User", ["password"]),
+    });
+
+    return verifiedUser;
+  };
+
+  changePassword = async (authUserId: number, body: ChangePasswordDTO) => {
+    const { oldPassword, newPassword } = body;
+    const existingUser = await this.prisma.user.findUnique({
+      where: { id: authUserId },
+    });
+
+    if (!existingUser || !existingUser.password) {
+      throw new ApiError("Invalid user", 400);
+    }
+
+    const isPasswordCorrect = await this.passwordService.comparePassword(
+      oldPassword,
+      existingUser.password,
+    );
+
+    if (!isPasswordCorrect) {
+      throw new ApiError("Old password incorrect", 400);
+    }
+
+    const isPasswordSame = await this.passwordService.comparePassword(
+      newPassword,
+      existingUser.password,
+    );
+
+    if (isPasswordSame) {
+      throw new ApiError("Password must be different", 400);
+    }
+
+    if (!isPasswordCorrect) {
+      throw new ApiError("Old password incorrect", 400);
+    }
+
+    const hashedNewPassword =
+      await this.passwordService.hashPassword(newPassword);
+
+    const updatedUser = await this.prisma.user.update({
+      where: { id: authUserId },
+      data: {
+        password: hashedNewPassword,
+      },
+      select: prismaExclude("User", ["password"]),
+    });
+
+    return updatedUser;
   };
 }

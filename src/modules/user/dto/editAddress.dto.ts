@@ -8,7 +8,11 @@ import {
   Min,
 } from "class-validator";
 
-export class CreateAddressDTO {
+export class EditAddressDTO {
+  @IsNotEmpty()
+  @IsNumber()
+  addressId!: number;
+
   @IsNotEmpty()
   @IsString()
   addressName!: string;

@@ -7,6 +7,7 @@ import { validateBody } from "../../middleware/validation.middleware";
 import { UpdateUserDTO } from "./dto/updateUser.dto";
 import { fileFilter, uploader } from "../../middleware/uploader.middleware";
 import { CreateAddressDTO } from "./dto/createAddress.dto";
+import { EditAddressDTO } from "./dto/editAddress.dto";
 
 @autoInjectable()
 export class UserRouter {
@@ -43,6 +44,17 @@ export class UserRouter {
       this.jwtMiddleware.verifyToken(env().JWT_SECRET!),
       validateBody(CreateAddressDTO),
       this.userController.createUserAddress,
+    );
+    this.router.patch(
+      "/address/:id",
+      this.jwtMiddleware.verifyToken(env().JWT_SECRET!),
+      validateBody(EditAddressDTO),
+      this.userController.editAddress,
+    );
+    this.router.delete(
+      "/address/:id",
+      this.jwtMiddleware.verifyToken(env().JWT_SECRET!),
+      this.userController.deleteAddress,
     );
   };
 
