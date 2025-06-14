@@ -4,6 +4,8 @@ import { ApiError } from "../../utils/api-error";
 import { PaginationService } from "../pagination/pagination.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { GetOrdersDTO } from "./dto/get-orders.dto";
+import { CreatePickupOrderDTO } from "./dto/createPickupAndOrder.dto";
+import { haversine } from "../../utils/haversine-distance";
 
 export interface CurrentUser {
   id: number;
@@ -511,4 +513,129 @@ export class OrderService {
 
     return employee;
   }
+
+  createPickupAndOrder = async (userId: number, body: CreatePickupOrderDTO) => {
+    const { addressId, scheduledPickupTime } = body;
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new ApiError("Invalid user id", 404);
+    }
+
+    const address = await this.prisma.address.findUnique({
+      where: { id: addressId },
+    });
+
+    if (!address) {
+      throw new ApiError("Invalid address id", 404);
+    }
+
+    const outlets = await this.prisma.outlet.findMany();
+
+    if (!outlets.length) {
+      throw new ApiError("No outlet available", 500);
+    }
+
+    const closestOutlet = outlets.reduce((closest, current) => {
+      const dist = haversine(
+        address.latitude,
+        address.longitude,
+        current.latitude,
+        current.longitude,
+      );
+      const closestDist = haversine(
+        address.latitude,
+        address.longitude,
+        closest.latitude,
+        closest.longitude,
+      );
+      return dist < closestDist ? current : closest;
+    });
+
+    const orderNumber = `BF-${Date.now()}`;
+
+    const newOrder = await this.prisma.order.create({
+      data: {
+        userId,
+        outletId: closestOutlet.id,
+        orderNumber,
+        address_line: address.addressLine,
+        district: address.district,
+        city: address.city,
+        province: address.province,
+        postalCode: address.postalCode,
+        latitude: address.latitude,
+        longitude: address.longitude,
+        scheduledPickupTime: new Date(scheduledPickupTime),
+      },
+    });
+
+    const newPickup = await this.prisma.pickUpJob.create({
+      data: {
+        orderId: newOrder.uuid,
+        pickUpScheduleOutlet: scheduledPickupTime,
+      },
+    });
+
+    return { newOrder, newPickup };
+  };
+
+  getOrdersByUser = async (userId: number, page = 1, limit = 10) => {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new ApiError("Invalid user id", 404);
+    }
+
+    const skip = (page - 1) * limit;
+
+    const [orders, total] = await Promise.all([
+      this.prisma.order.findMany({
+        where: { userId },
+        skip,
+        take: limit,
+        orderBy: {
+          createdAt: "desc",
+        },
+      }),
+      this.prisma.order.count({
+        where: { userId },
+      }),
+    ]);
+
+    return {
+      orders,
+      total,
+      page,
+      totalPages: Math.ceil(total / limit),
+    };
+  };
+
+  getDetailOrder = async (userId: number, uuid: string) => {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new ApiError("Invalid user id", 404);
+    }
+
+    const order = await this.prisma.order.findUnique({
+      where: { uuid },
+    });
+
+    if (!order) {
+      throw new ApiError("Order not found", 400);
+    }
+    if (order.userId !== userId) {
+      throw new ApiError("Unauthorised", 400);
+    }
+
+    return order;
+  };
 }

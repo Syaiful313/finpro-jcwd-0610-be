@@ -125,7 +125,7 @@ model PickUpJob {
   orderId              String
   order                Order            @relation(fields: [orderId], references: [uuid])
   pickUpPhotos         String?
-  pickUpScheduleOutlet String
+  pickUpScheduleOutlet DateTime
   notes                String?
   status               DriverTaskStatus @default(PENDING)
   updatedAt            DateTime         @updatedAt
@@ -172,6 +172,7 @@ model Address {
   isPrimary   Boolean  @default(false)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
 
   @@map("addresses")
 }
@@ -251,8 +252,10 @@ model Order {
   city                  String
   province              String
   postalCode            String
+  latitude              Float
+  longitude             Float
   orderNumber           String
-  orderStatus           OrderStatus
+  orderStatus           OrderStatus   @default(WAITING_FOR_PICKUP)
   scheduledPickupTime   DateTime?
   actualPickupTime      DateTime?
   scheduledDeliveryTime DateTime?

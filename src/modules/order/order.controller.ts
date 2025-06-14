@@ -6,6 +6,7 @@ import { ApiError } from "../../utils/api-error";
 import { GetOrdersDTO } from "./dto/get-orders.dto";
 import { OrderService } from "./order.service";
 import { OrderValidation } from "./order.validation";
+import { CreatePickupOrderDTO } from "./dto/createPickupAndOrder.dto";
 
 @injectable()
 export class OrderController {
@@ -112,6 +113,52 @@ export class OrderController {
           exportedAt: new Date().toISOString(),
         },
       });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  createPickupAndOrder = async (
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ) => {
+    try {
+      const authUserId = req.user!.id;
+      const body = plainToInstance(CreatePickupOrderDTO, req.body);
+      const result = await this.orderService.createPickupAndOrder(
+        authUserId,
+        body,
+      );
+      res.status(200).send(result);
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  getOrdersByUser = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const authUserId = Number(req.params.id);
+      const page = Number(req.query.page) || 1;
+      const limit = Number(req.query.limit) || 10;
+
+      const result = await this.orderService.getOrdersByUser(
+        authUserId,
+        page,
+        limit,
+      );
+      res.status(200).send(result);
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  getDetailOrder = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const authUserId = req.user!.id;
+      const uuid = req.params.uuid;
+      const result = await this.orderService.getDetailOrder(authUserId, uuid);
+      res.status(200).send(result);
     } catch (error) {
       next(error);
     }
