@@ -10,7 +10,6 @@ import {
   MinLength,
 } from "class-validator";
 
-// ✅ Interface version
 export interface UpdateUserDTO {
   firstName?: string;
   lastName?: string;
@@ -20,11 +19,10 @@ export interface UpdateUserDTO {
   phoneNumber?: string;
   isVerified?: boolean | string;
   provider?: Provider;
-  outletId?: string; // ✅ Added for ADMIN to specify outlet
-  npwp?: string;     // ✅ Added for employee roles
+  outletId?: string;
+  npwp?: string;
 }
 
-// ✅ Class-validator version - Enhanced
 export class UpdateUserDTO {
   @IsOptional()
   @IsString()
@@ -44,7 +42,7 @@ export class UpdateUserDTO {
   @IsString()
   @MinLength(8, { message: "Password must be at least 8 characters" })
   @Matches(/^(?=.*[a-zA-Z])(?=.*\d)/, {
-    message: "Password must contain both letters and numbers"
+    message: "Password must contain both letters and numbers",
   })
   password?: string;
 
@@ -55,7 +53,7 @@ export class UpdateUserDTO {
   @IsOptional()
   @IsString()
   @Matches(/^08[0-9]{8,11}$/, {
-    message: "Phone number must be in format 08xxxxxxxxxx (10-13 digits)"
+    message: "Phone number must be in format 08xxxxxxxxxx (10-13 digits)",
   })
   phoneNumber?: string;
 
@@ -67,7 +65,6 @@ export class UpdateUserDTO {
   @IsEnum(Provider, { message: "Invalid provider" })
   provider?: Provider;
 
-  // ✅ New fields for employee roles
   @IsOptional()
   @IsNumberString({}, { message: "Outlet ID must be a number" })
   outletId?: string;
@@ -75,7 +72,7 @@ export class UpdateUserDTO {
   @IsOptional()
   @IsString()
   @Matches(/^[0-9]{15}$/, {
-    message: "NPWP must be exactly 15 digits"
+    message: "NPWP must be exactly 15 digits",
   })
   npwp?: string;
 }

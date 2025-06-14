@@ -228,7 +228,6 @@ export class AttendanceService {
     return result;
   };
 
-  // Additional methods for attendance management
   getAttendanceHistory = async (
     authUserId: number,
     startDate?: Date,

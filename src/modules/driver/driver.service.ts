@@ -197,7 +197,7 @@ export class DriverService {
         ...pickupJobs.map((job) => ({
           ...job,
           jobType: "pickup" as const,
-          canClaim: !isBusy && !hasReachedLimit,
+          canClaim: !hasReachedLimit,
         })),
       );
 
@@ -279,7 +279,7 @@ export class DriverService {
         ...deliveryJobs.map((job) => ({
           ...job,
           jobType: "delivery" as const,
-          canClaim: !isBusy && !hasReachedLimit,
+          canClaim: !hasReachedLimit,
         })),
       );
 
@@ -515,6 +515,9 @@ export class DriverService {
     if (!employee || employee.user.role !== "DRIVER") {
       throw new ApiError("Driver not found", 404);
     }
+    if (await this.isDriverBusy(employee.id)) {
+      throw new ApiError("Driver is currently busy with another order", 400);
+    }
     console.log("pickupJobId:", pickupJobId, typeof pickupJobId);
     console.log("employee.id:", employee.id, typeof employee.id);
     console.log("DriverTaskStatus.ASSIGNED:", DriverTaskStatus.ASSIGNED);
@@ -564,7 +567,7 @@ export class DriverService {
         data: {
           orderId: pickUpJob.order.uuid,
           message: notificationMessages.CUSTOMER,
-          notifType: NotifType.NEW_PICKUP_REQUEST,
+          notifType: NotifType.PICKUP_STARTED,
           orderStatus: OrderStatus.DRIVER_ON_THE_WAY_TO_CUSTOMER,
           role: Role.CUSTOMER,
           updatedAt: new Date(),
@@ -576,7 +579,7 @@ export class DriverService {
         data: {
           orderId: pickUpJob.order.uuid,
           message: notificationMessages.DRIVER,
-          notifType: NotifType.NEW_PICKUP_REQUEST,
+          notifType: NotifType.PICKUP_STARTED,
           orderStatus: OrderStatus.DRIVER_ON_THE_WAY_TO_CUSTOMER,
           role: Role.DRIVER,
           updatedAt: new Date(),
@@ -588,7 +591,7 @@ export class DriverService {
         data: {
           orderId: pickUpJob.order.uuid,
           message: notificationMessages.OUTLET_ADMIN,
-          notifType: NotifType.NEW_PICKUP_REQUEST,
+          notifType: NotifType.PICKUP_STARTED,
           orderStatus: OrderStatus.DRIVER_ON_THE_WAY_TO_CUSTOMER,
           role: Role.OUTLET_ADMIN,
           updatedAt: new Date(),
@@ -643,7 +646,7 @@ export class DriverService {
     const notificationMessages = {
       CUSTOMER: `Your laundry has been picked up successfully! Order #${pickUpJob.order.orderNumber} is now on the way to our outlet for processing.`,
       OUTLET_ADMIN: `Pickup task completed for Order #${pickUpJob.order.orderNumber}. Driver: ${employee.user.firstName} ${employee.user.lastName} is heading to outlet.`,
-      DRIVER: `You have successfully completed pickup for Order #${pickUpJob.order.orderNumber}. Please head to the outlet.`,
+      DRIVER: `You have successfully completed pickup for Order #${pickUpJob.order.orderNumber}.`,
     };
 
     const updatedPickUpJob = await this.prisma.$transaction(async (tx) => {
@@ -719,6 +722,10 @@ export class DriverService {
       throw new ApiError("Driver not found", 404);
     }
 
+    if (await this.isDriverBusy(employee.id)) {
+      throw new ApiError("Driver is currently busy with another order", 400);
+    }
+
     const deliveryJob = await this.prisma.deliveryJob.findFirst({
       where: {
         id: deliveryJobId,
@@ -765,7 +772,7 @@ export class DriverService {
         data: {
           orderId: deliveryJob.order.uuid,
           message: notificationMessages.CUSTOMER,
-          notifType: NotifType.NEW_DELIVERY_REQUEST,
+          notifType: NotifType.DELIVERY_STARTED,
           orderStatus: OrderStatus.BEING_DELIVERED_TO_CUSTOMER,
           role: Role.CUSTOMER,
           updatedAt: new Date(),
@@ -777,7 +784,7 @@ export class DriverService {
         data: {
           orderId: deliveryJob.order.uuid,
           message: notificationMessages.DRIVER,
-          notifType: NotifType.NEW_DELIVERY_REQUEST,
+          notifType: NotifType.DELIVERY_STARTED,
           orderStatus: OrderStatus.BEING_DELIVERED_TO_CUSTOMER,
           role: Role.DRIVER,
           updatedAt: new Date(),
@@ -789,7 +796,7 @@ export class DriverService {
         data: {
           orderId: deliveryJob.order.uuid,
           message: notificationMessages.OUTLET_ADMIN,
-          notifType: NotifType.NEW_DELIVERY_REQUEST,
+          notifType: NotifType.DELIVERY_STARTED,
           orderStatus: OrderStatus.BEING_DELIVERED_TO_CUSTOMER,
           role: Role.OUTLET_ADMIN,
           updatedAt: new Date(),
@@ -909,12 +916,19 @@ export class DriverService {
     return updatedDeliveryJob;
   };
 
-  getDriverJobs = async (
-    authUserId: number,
-    dto: GetDriverDTO,
-    status?: "active" | "completed" | "all",
-  ) => {
-    const { page, take, sortBy = "createdAt", sortOrder = "desc", all } = dto;
+  getDriverJobs = async (authUserId: number, dto: GetDriverDTO) => {
+    const {
+      page,
+      take,
+      sortBy,
+      sortOrder,
+      all,
+      search,
+      status,
+      jobType,
+      dateFrom,
+      dateTo,
+    } = dto;
 
     const employee = await this.prisma.employee.findFirst({
       where: { userId: authUserId },
@@ -939,92 +953,111 @@ export class DriverService {
       ];
     }
 
-    let paginationArgs: any = {};
-    if (!all) {
-      paginationArgs = {
-        skip: (page - 1) * take,
-        take,
-      };
+    const dateFilter: any = {};
+    if (dateFrom) {
+      dateFilter.gte = new Date(`${dateFrom}T00:00:00.000Z`);
+    }
+    if (dateTo) {
+      dateFilter.lte = new Date(`${dateTo}T23:59:59.999Z`);
     }
 
-    // Get pickup jobs
-    const pickupJobs = await this.prisma.pickUpJob.findMany({
-      where: {
-        employeeId: employee.id,
-        status: { in: statusFilter },
-      },
-      include: {
-        order: {
-          include: {
-            user: {
-              select: {
-                firstName: true,
-                lastName: true,
-                phoneNumber: true,
-              },
+    const whereClause = {
+      employeeId: employee.id,
+      status: { in: statusFilter },
+      ...(Object.keys(dateFilter).length > 0 && {
+        updatedAt: dateFilter,
+      }),
+    };
+
+    const orderInclude = {
+      order: {
+        include: {
+          user: {
+            select: {
+              firstName: true,
+              lastName: true,
+              phoneNumber: true,
             },
-            outlet: {
-              select: {
-                outletName: true,
-              },
+          },
+          outlet: {
+            select: {
+              outletName: true,
             },
           },
         },
       },
-      orderBy: { [sortBy]: sortOrder },
-      ...paginationArgs,
-    });
+    };
 
-    // Get delivery jobs
-    const deliveryJobs = await this.prisma.deliveryJob.findMany({
-      where: {
-        employeeId: employee.id,
-        status: { in: statusFilter },
-      },
-      include: {
-        order: {
-          include: {
-            user: {
-              select: {
-                firstName: true,
-                lastName: true,
-                phoneNumber: true,
-              },
-            },
-            outlet: {
-              select: {
-                outletName: true,
-              },
-            },
-          },
-        },
-      },
-      orderBy: { [sortBy]: sortOrder },
-      ...paginationArgs,
-    });
+    const baseQueryOptions = {
+      where: whereClause,
+      include: orderInclude,
+      orderBy: { [sortBy]: sortOrder } as any,
+    };
 
-    // Combine and format the results
-    const allJobs = [
-      ...pickupJobs.map((job) => ({
+    let allJobs: any[] = [];
+    let totalCount = 0;
+
+    if (jobType === "pickup") {
+      totalCount = await this.prisma.pickUpJob.count({
+        where: whereClause,
+      });
+
+      const pickupJobs = await this.prisma.pickUpJob.findMany({
+        ...baseQueryOptions,
+        ...(all ? {} : { skip: (page - 1) * take, take }),
+      });
+
+      allJobs = pickupJobs.map((job) => ({
         ...job,
         jobType: "pickup" as const,
         photos: job.pickUpPhotos,
-      })),
-      ...deliveryJobs.map((job) => ({
+      }));
+    } else if (jobType === "delivery") {
+      totalCount = await this.prisma.deliveryJob.count({
+        where: whereClause,
+      });
+
+      const deliveryJobs = await this.prisma.deliveryJob.findMany({
+        ...baseQueryOptions,
+        ...(all ? {} : { skip: (page - 1) * take, take }),
+      });
+
+      allJobs = deliveryJobs.map((job) => ({
         ...job,
         jobType: "delivery" as const,
         photos: job.deliveryPhotos,
-      })),
-    ];
+      }));
+    } else {
+      const pickupJobs = await this.prisma.pickUpJob.findMany(baseQueryOptions);
+      const deliveryJobs =
+        await this.prisma.deliveryJob.findMany(baseQueryOptions);
 
-    // Sort combined results
-    allJobs.sort((a, b) => {
-      const dateA = new Date(a.createdAt).getTime();
-      const dateB = new Date(b.createdAt).getTime();
-      return sortOrder === "desc" ? dateB - dateA : dateA - dateB;
-    });
+      allJobs = [
+        ...pickupJobs.map((job) => ({
+          ...job,
+          jobType: "pickup" as const,
+          photos: job.pickUpPhotos,
+        })),
+        ...deliveryJobs.map((job) => ({
+          ...job,
+          jobType: "delivery" as const,
+          photos: job.deliveryPhotos,
+        })),
+      ];
 
-    const totalCount = pickupJobs.length + deliveryJobs.length;
+      allJobs.sort((a, b) => {
+        const dateA = new Date(a.createdAt).getTime();
+        const dateB = new Date(b.createdAt).getTime();
+        return sortOrder === "desc" ? dateB - dateA : dateA - dateB;
+      });
+
+      totalCount = allJobs.length;
+
+      if (!all) {
+        const skip = (page - 1) * take;
+        allJobs = allJobs.slice(skip, skip + take);
+      }
+    }
 
     return {
       data: allJobs,
@@ -1036,11 +1069,57 @@ export class DriverService {
     };
   };
 
-  // getOrderHistory = async (authUserId: number, dto: GetDriverDTO) => {
-  //   return this.getDriverJobs(authUserId, dto, "completed");
-  // };
+  getOrderDetail = async (authUserId: number, orderId: string) => {
+    const employee = await this.prisma.employee.findFirst({
+      where: { userId: authUserId },
+      include: { user: true },
+    });
 
-  // getActiveJobs = async (authUserId: number, dto: GetDriverDTO) => {
-  //   return this.getDriverJobs(authUserId, dto, "active");
-  // };
+    if (!employee || employee.user.role !== "DRIVER") {
+      throw new ApiError("Driver not found", 404);
+    }
+    // cari uuidnya dari job pickup/delivery
+    const order = await this.prisma.order.findUnique({
+      where: { uuid: orderId },
+      include: {
+        user: true, // include customer
+        pickUpJobs: {
+          include: {
+            order: { include: { user: true } },
+          },
+        },
+        deliveryJobs: {
+          include: {
+            order: { include: { user: true } },
+          },
+        },
+      },
+    });
+
+    if (!order) {
+      throw new ApiError("Order not found", 404);
+    }
+
+    const activeDelivery = order.deliveryJobs?.find(
+      (job) =>
+        job.status === "ASSIGNED" ||
+        job.status === "IN_PROGRESS" ||
+        job.status === "COMPLETED",
+    );
+
+    const activePickup = order.pickUpJobs?.find(
+      (job) =>
+        job.status === "ASSIGNED" ||
+        job.status === "IN_PROGRESS" ||
+        job.status === "COMPLETED",
+    );
+
+    const activeJob = activeDelivery
+      ? { type: "delivery", job: activeDelivery }
+      : activePickup
+        ? { type: "pickup", job: activePickup }
+        : null;
+
+    return activeJob;
+  };
 }

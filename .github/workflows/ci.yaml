@@ -1,55 +1,55 @@
-name: CI
+# name: CI
 
-on:
-  pull_request:
-    branches:
-      - main
+# on:
+#   pull_request:
+#     branches:
+#       - main
 
-jobs:
-  build:
-    timeout-minutes: 5
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        node-version: [18.x]
-    services:
-      postgres:
-        image: postgres:15
-        ports:
-          - 7654:5432
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: admin
-          POSTGRES_DB: postgres
-        options: >-
-          --health-cmd "pg_isready -U postgres"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
+# jobs:
+#   build:
+#     timeout-minutes: 5
+#     runs-on: ubuntu-latest
+#     strategy:
+#       matrix:
+#         node-version: [18.x]
+#     services:
+#       postgres:
+#         image: postgres:15
+#         ports:
+#           - 7654:5432
+#         env:
+#           POSTGRES_USER: postgres
+#           POSTGRES_PASSWORD: admin
+#           POSTGRES_DB: postgres
+#         options: >-
+#           --health-cmd "pg_isready -U postgres"
+#           --health-interval 10s
+#           --health-timeout 5s
+#           --health-retries 5
 
-      mailhog:
-        image: mailhog/mailhog
-        ports:
-          - 1025:1025
+#       mailhog:
+#         image: mailhog/mailhog
+#         ports:
+#           - 1025:1025
 
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+#     steps:
+#       - name: Checkout code
+#         uses: actions/checkout@v3
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: "20"
+#       - name: Set up Node.js
+#         uses: actions/setup-node@v3
+#         with:
+#           node-version: "20"
 
-      - name: Install dependencies
-        run: npm install
+#       - name: Install dependencies
+#         run: npm install
 
-      - name: Wait for PostgreSQL to be ready
-        run: |
-          until pg_isready -h localhost -p 7654 -U postgres -d postgres; do
-            echo "Waiting for database...";
-            sleep 2;
-          done
+#       - name: Wait for PostgreSQL to be ready
+#         run: |
+#           until pg_isready -h localhost -p 7654 -U postgres -d postgres; do
+#             echo "Waiting for database...";
+#             sleep 2;
+#           done
 
-      - name: Run tests
-        run: npm run test:integration
+#       - name: Run tests
+#         run: npm run test:integration

@@ -12,12 +12,11 @@ import { PasswordService } from "./password.service";
 
 @injectable()
 export class AdminService {
-  cloudinaryService: any;
   constructor(
     private readonly prisma: PrismaService,
     private readonly paginationService: PaginationService,
     private readonly fileService: CloudinaryService,
-    private passwordService: PasswordService,
+    private readonly passwordService: PasswordService,
     private readonly adminValidation: AdminValidation,
   ) {}
 
@@ -29,23 +28,16 @@ export class AdminService {
     }
 
     const conditions: Prisma.UserWhereInput[] = [];
-
     conditions.push({ deletedAt: null });
 
     if (outletId) {
       let allowedRoles: Role[] = [Role.DRIVER, Role.WORKER, Role.OUTLET_ADMIN];
 
-      if (
-        role &&
-        ([Role.DRIVER, Role.WORKER, Role.OUTLET_ADMIN] as Role[]).includes(
-          role as Role,
-        )
-      ) {
-        allowedRoles = [role as Role];
+      if (role && allowedRoles.includes(role)) {
+        allowedRoles = [role];
       }
 
       const roleConditions = [];
-
       const employeeRoles = allowedRoles.filter(
         (r) => r === Role.DRIVER || r === Role.WORKER,
       );
@@ -53,18 +45,8 @@ export class AdminService {
       if (employeeRoles.length > 0) {
         roleConditions.push({
           AND: [
-            {
-              role: {
-                in: employeeRoles,
-              },
-            },
-            {
-              employees: {
-                some: {
-                  outletId: outletId,
-                },
-              },
-            },
+            { role: { in: employeeRoles } },
+            { employees: { some: { outletId: outletId } } },
           ],
         });
       }
@@ -76,33 +58,16 @@ export class AdminService {
       }
 
       if (roleConditions.length > 0) {
-        conditions.push({
-          OR: roleConditions,
-        });
+        conditions.push({ OR: roleConditions });
       }
     }
 
     if (search) {
       conditions.push({
         OR: [
-          {
-            firstName: {
-              contains: search,
-              mode: "insensitive" as const,
-            },
-          },
-          {
-            lastName: {
-              contains: search,
-              mode: "insensitive" as const,
-            },
-          },
-          {
-            email: {
-              contains: search,
-              mode: "insensitive" as const,
-            },
-          },
+          { firstName: { contains: search, mode: "insensitive" as const } },
+          { lastName: { contains: search, mode: "insensitive" as const } },
+          { email: { contains: search, mode: "insensitive" as const } },
         ],
       });
     }
@@ -111,9 +76,7 @@ export class AdminService {
       conditions.push({ role });
     }
 
-    const whereClause: Prisma.UserWhereInput = {
-      AND: conditions,
-    };
+    const whereClause: Prisma.UserWhereInput = { AND: conditions };
 
     const baseSelect = {
       id: true,
@@ -157,7 +120,6 @@ export class AdminService {
         }
       : {
           ...baseSelect,
-
           employees: {
             select: {
               id: true,
@@ -169,7 +131,6 @@ export class AdminService {
         };
 
     let paginationArgs: Prisma.UserFindManyArgs = {};
-
     if (!all) {
       paginationArgs = {
         skip: (page - 1) * take,
@@ -245,7 +206,7 @@ export class AdminService {
       throw new ApiError("Role wajib diisi", 400);
     }
 
-    const parsedOutletId = outletId ? parseInt(outletId.toString()) : undefined;
+    const targetOutletId = outletId;
 
     await this.adminValidation.validateUserData({
       email,
@@ -253,11 +214,13 @@ export class AdminService {
       role,
       profile,
       npwp,
-      targetOutletId: parsedOutletId,
+      targetOutletId,
     });
 
     const isVerifiedBool =
-      typeof isVerified === "string" ? isVerified === "true" : isVerified;
+      typeof isVerified === "string"
+        ? isVerified === "true"
+        : Boolean(isVerified);
 
     let profilePicUrl = null;
     if (profile) {
@@ -265,35 +228,32 @@ export class AdminService {
       profilePicUrl = secure_url;
     }
 
-    const hashedPassword = await this.passwordService.hassPassword(password);
+    const hashedPassword = await this.passwordService.hashPassword(password);
 
     const result = await this.prisma.$transaction(async (tx) => {
-      const newUser = await tx.user.create({
-        data: {
-          firstName,
-          lastName,
-          email,
-          password: hashedPassword,
-          phoneNumber,
-          profilePic: profilePicUrl,
-          isVerified: isVerifiedBool,
-          provider: provider || "CREDENTIAL",
-          role: role,
+      const userData = {
+        firstName,
+        lastName,
+        email,
+        password: hashedPassword,
+        phoneNumber,
+        profilePic: profilePicUrl,
+        isVerified: isVerifiedBool,
+        provider: provider || "CREDENTIAL",
+        role: role,
+        ...(this.isEmployeeRole(role) && targetOutletId
+          ? { outletId: targetOutletId }
+          : {}),
+      };
 
-          ...(parsedOutletId &&
-          ["OUTLET_ADMIN", "WORKER", "DRIVER"].includes(role)
-            ? { outletId: parsedOutletId }
-            : {}),
-        },
-      });
+      const newUser = await tx.user.create({ data: userData });
 
-      const employeeRoles: Role[] = ["OUTLET_ADMIN", "WORKER", "DRIVER"];
-      if (employeeRoles.includes(role)) {
+      if (this.isEmployeeRole(role) && targetOutletId && npwp) {
         await tx.employee.create({
           data: {
             userId: newUser.id,
-            outletId: parsedOutletId!,
-            npwp: npwp!,
+            outletId: targetOutletId,
+            npwp,
           },
         });
       }
@@ -304,40 +264,7 @@ export class AdminService {
     return {
       success: true,
       message: "User berhasil dibuat",
-      data: {
-        ...result,
-        password: undefined,
-      },
-    };
-  };
-
-  deleteUser = async (userId: number) => {
-    const result = await this.prisma.$transaction(async (tx) => {
-      const deletedUser = await tx.user.update({
-        where: { id: userId },
-        data: { deletedAt: new Date() },
-      });
-
-      await tx.employee.updateMany({
-        where: {
-          userId: userId,
-          deletedAt: null,
-        },
-        data: { deletedAt: new Date() },
-      });
-
-      return deletedUser;
-    });
-
-    return {
-      success: true,
-      message: "User berhasil dihapus",
-      data: {
-        id: result.id,
-        name: `${result.firstName} ${result.lastName}`,
-        email: result.email,
-        deletedAt: result.deletedAt,
-      },
+      data: { ...result, password: undefined },
     };
   };
 
@@ -375,7 +302,7 @@ export class AdminService {
       isVerified !== undefined
         ? typeof isVerified === "string"
           ? isVerified === "true"
-          : isVerified
+          : Boolean(isVerified)
         : undefined;
 
     let profilePicUrl: string | undefined;
@@ -386,16 +313,18 @@ export class AdminService {
 
     let hashedPassword: string | undefined;
     if (password) {
-      hashedPassword = await this.passwordService.hassPassword(password);
+      hashedPassword = await this.passwordService.hashPassword(password);
     }
 
-    const newRoleRequiresEmployeeData =
-      role && ["OUTLET_ADMIN", "WORKER", "DRIVER"].includes(role);
-    const currentRoleRequiresEmployeeData = [
-      "OUTLET_ADMIN",
-      "WORKER",
-      "DRIVER",
-    ].includes(existingUser.role);
+    const newRoleRequiresEmployeeData = role && this.isEmployeeRoleString(role);
+    const currentRoleRequiresEmployeeData = this.isEmployeeRole(
+      existingUser.role,
+    );
+
+    let skipEmployeeUpdate = false;
+    if (!role || role === existingUser.role) {
+      skipEmployeeUpdate = true;
+    }
 
     const result = await this.prisma.$transaction(async (tx) => {
       const updateData: any = {};
@@ -410,10 +339,12 @@ export class AdminService {
       if (isVerifiedBool !== undefined) updateData.isVerified = isVerifiedBool;
       if (provider !== undefined) updateData.provider = provider;
 
-      if (newRoleRequiresEmployeeData) {
-        updateData.outletId = outletId ? Number(outletId) : null;
-      } else {
-        updateData.outletId = null;
+      if (!skipEmployeeUpdate) {
+        if (newRoleRequiresEmployeeData) {
+          updateData.outletId = outletId ? Number(outletId) : null;
+        } else {
+          updateData.outletId = null;
+        }
       }
 
       const updatedUser = await tx.user.update({
@@ -421,37 +352,39 @@ export class AdminService {
         data: updateData,
       });
 
-      if (newRoleRequiresEmployeeData) {
-        const targetOutletId = outletId ? Number(outletId) : undefined;
+      if (!skipEmployeeUpdate) {
+        if (newRoleRequiresEmployeeData) {
+          const targetOutletId = outletId ? Number(outletId) : undefined;
 
-        if (!targetOutletId) {
-          throw new ApiError("Outlet ID wajib untuk role employee", 400);
-        }
+          if (!targetOutletId) {
+            throw new ApiError("Outlet ID wajib untuk role employee", 400);
+          }
 
-        if (existingUser.employees.length > 0) {
-          await tx.employee.updateMany({
+          if (existingUser.employees.length > 0) {
+            await tx.employee.updateMany({
+              where: { userId: userId },
+              data: {
+                outletId: targetOutletId,
+                ...(npwp && { npwp: npwp }),
+              },
+            });
+          } else {
+            await tx.employee.create({
+              data: {
+                userId: userId,
+                outletId: targetOutletId,
+                npwp: npwp || "",
+              },
+            });
+          }
+        } else if (
+          currentRoleRequiresEmployeeData &&
+          !newRoleRequiresEmployeeData
+        ) {
+          await tx.employee.deleteMany({
             where: { userId: userId },
-            data: {
-              outletId: targetOutletId,
-              ...(npwp && { npwp: npwp }),
-            },
-          });
-        } else {
-          await tx.employee.create({
-            data: {
-              userId: userId,
-              outletId: targetOutletId,
-              npwp: npwp || "",
-            },
           });
         }
-      } else if (
-        currentRoleRequiresEmployeeData &&
-        !newRoleRequiresEmployeeData
-      ) {
-        await tx.employee.deleteMany({
-          where: { userId: userId },
-        });
       }
 
       return updatedUser;
@@ -467,4 +400,41 @@ export class AdminService {
       },
     };
   };
+
+  deleteUser = async (userId: number) => {
+    const result = await this.prisma.$transaction(async (tx) => {
+      const deletedUser = await tx.user.update({
+        where: { id: userId },
+        data: { deletedAt: new Date() },
+      });
+
+      await tx.employee.updateMany({
+        where: { userId, deletedAt: null },
+        data: { deletedAt: new Date() },
+      });
+
+      return deletedUser;
+    });
+
+    return {
+      success: true,
+      message: "User berhasil dihapus",
+      data: {
+        id: result.id,
+        name: `${result.firstName} ${result.lastName}`,
+        email: result.email,
+        deletedAt: result.deletedAt,
+      },
+    };
+  };
+
+  private isEmployeeRole(role: Role): boolean {
+    return (
+      role === Role.OUTLET_ADMIN || role === Role.WORKER || role === Role.DRIVER
+    );
+  }
+
+  private isEmployeeRoleString(role: string): boolean {
+    return role === "OUTLET_ADMIN" || role === "WORKER" || role === "DRIVER";
+  }
 }

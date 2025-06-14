@@ -1,10 +1,14 @@
 import argon2 from "argon2";
 
 export class PasswordService {
-  hassPassword = async (password: string) => {
+  hashPassword = async (password: string): Promise<string> => {
     return await argon2.hash(password);
   };
-  comparePassword = async (plaintPassword: string, hashPassword: string) => {
-    return await argon2.verify(hashPassword, plaintPassword);
+
+  comparePassword = async (
+    plainPassword: string,
+    hashPassword: string,
+  ): Promise<boolean> => {
+    return await argon2.verify(hashPassword, plainPassword);
   };
 }

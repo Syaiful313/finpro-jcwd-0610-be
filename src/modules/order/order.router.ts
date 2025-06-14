@@ -20,10 +20,24 @@ export class OrderRouter {
 
   private initializeRoutes = (): void => {
     this.router.get(
-      "/",
+      "/export/tracking",
       this.jwtMiddleware.verifyToken(env().JWT_SECRET),
       verifyRole(["ADMIN", "OUTLET_ADMIN"]),
-      this.orderController.getOrders,
+      this.orderController.exportOrderTracking,
+    );
+
+    this.router.get(
+      "/pending/process",
+      this.jwtMiddleware.verifyToken(env().JWT_SECRET),
+      verifyRole(["OUTLET_ADMIN"]),
+      this.orderController.getPendingProcessOrders,
+    );
+
+    this.router.get(
+      "/laundry-items",
+      this.jwtMiddleware.verifyToken(env().JWT_SECRET),
+      verifyRole(["ADMIN", "OUTLET_ADMIN"]),
+      this.orderController.getLaundryItems,
     );
 
     this.router.post(
@@ -40,11 +54,18 @@ export class OrderRouter {
       this.orderController.getOrderDetail,
     );
 
+    this.router.patch(
+      "/:orderId/process",
+      this.jwtMiddleware.verifyToken(env().JWT_SECRET),
+      verifyRole(["OUTLET_ADMIN"]),
+      this.orderController.processOrder,
+    );
+
     this.router.get(
-      "/export/tracking",
+      "/",
       this.jwtMiddleware.verifyToken(env().JWT_SECRET),
       verifyRole(["ADMIN", "OUTLET_ADMIN"]),
-      this.orderController.exportOrderTracking,
+      this.orderController.getOrders,
     );
 
     this.router.get(

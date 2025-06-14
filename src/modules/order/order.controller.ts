@@ -4,6 +4,8 @@ import { NextFunction, Request, Response } from "express";
 import { injectable } from "tsyringe";
 import { ApiError } from "../../utils/api-error";
 import { GetOrdersDTO } from "./dto/get-orders.dto";
+import { GetPendingOrdersDTO } from "./dto/get-pending-orders.dto";
+import { ProcessOrderDTO } from "./dto/proses-order.dto";
 import { OrderService } from "./order.service";
 import { OrderValidation } from "./order.validation";
 import { CreatePickupOrderDTO } from "./dto/createPickupAndOrder.dto";
@@ -53,6 +55,12 @@ export class OrderController {
 
       if (!orderId) {
         throw new ApiError("Order ID is required", 400);
+      }
+
+      const uuidRegex =
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      if (!uuidRegex.test(orderId)) {
+        throw new ApiError("Format Order ID tidak valid", 400);
       }
 
       const result = await this.orderValidation.validateOrderDetailAccess(
@@ -112,6 +120,82 @@ export class OrderController {
           total: exportData.length,
           exportedAt: new Date().toISOString(),
         },
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  getPendingProcessOrders = async (
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ) => {
+    try {
+      const query = plainToInstance(GetPendingOrdersDTO, req.query);
+      const validationErrors = await validate(query);
+
+      if (validationErrors.length > 0) {
+        const errorMessages = validationErrors
+          .map((error) => Object.values(error.constraints || {}).join(", "))
+          .join("; ");
+        throw new ApiError(`Validation error: ${errorMessages}`, 400);
+      }
+
+      const user = (req as any).user;
+      const result = await this.orderService.getPendingProcessOrders(
+        query,
+        user,
+      );
+
+      res.status(200).json({
+        success: true,
+        message: "Pending process orders retrieved successfully",
+        ...result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  processOrder = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { orderId } = req.params;
+      const body = plainToInstance(ProcessOrderDTO, req.body);
+      const user = (req as any).user;
+
+      if (!orderId) {
+        throw new ApiError("Order ID is required", 400);
+      }
+
+      const validationErrors = await validate(body);
+      if (validationErrors.length > 0) {
+        const errorMessages = validationErrors
+          .map((error) => Object.values(error.constraints || {}).join(", "))
+          .join("; ");
+        throw new ApiError(`Validation error: ${errorMessages}`, 400);
+      }
+
+      const result = await this.orderService.processOrder(orderId, body, user);
+
+      res.status(200).json(result);
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  getLaundryItems = async (
+    _req: Request,
+    res: Response,
+    next: NextFunction,
+  ) => {
+    try {
+      const result = await this.orderService.getLaundryItems();
+
+      res.status(200).json({
+        success: true,
+        message: "Laundry items retrieved successfully",
+        ...result,
       });
     } catch (error) {
       next(error);
