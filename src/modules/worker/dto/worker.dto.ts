@@ -1,36 +1,79 @@
-import { OrderStatus, WorkerTypes } from "@prisma/client";
+import { Type } from "class-transformer";
 import {
+  IsArray,
   IsDateString,
   IsEnum,
   IsInt,
   IsNotEmpty,
   IsOptional,
   IsString,
+  ValidateNested,
 } from "class-validator";
-import { PaginationService } from "../../pagination/pagination.service";
+import { OrderStatus } from "@prisma/client";
+import { PaginationQueryParams } from "../../pagination/dto/pagination.dto";
 
-export class GetWorkerOrdersDto extends PaginationService {
+export class GetWorkerJobsDto extends PaginationQueryParams {
   @IsOptional()
   @IsEnum(OrderStatus)
-  status?: OrderStatus;
-}
-
-export class GetWorkerHistoryDto extends PaginationService {
-  @IsOptional()
-  @IsDateString()
-  startDate?: string;
+  readonly status?: OrderStatus;
 
   @IsOptional()
+  @IsString()
+  readonly search?: string;
+
+  @IsOptional()
   @IsDateString()
-  endDate?: string;
+  readonly dateFrom?: string;
+
+  @IsOptional()
+  @IsDateString()
+  readonly dateTo?: string;
 }
 
-export class StartProcessingOrderDto {
-  //   nunggu dlu nanti
+export class GetWorkerHistoryDto extends PaginationQueryParams {
+  @IsOptional()
+  @IsDateString()
+  readonly dateFrom?: string;
+
+  @IsOptional()
+  @IsDateString()
+  readonly dateTo?: string;
+}
+
+class OrderItemDto {
+  @IsInt()
+  @IsNotEmpty()
+  readonly laundryItemId?: number;
+
+  @IsInt()
+  @IsNotEmpty()
+  readonly quantity?: number;
+}
+
+export class ProcessOrderDto {
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => OrderItemDto)
+  readonly items?: OrderItemDto[];
+
+  @IsOptional()
+  @IsString()
+  readonly notes?: string;
+}
+
+export class RequestBypassDto {
+  @IsString()
+  @IsNotEmpty()
+  readonly reason!: string;
 }
 
 export class CompleteOrderProcessDto {
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => OrderItemDto)
+  readonly items?: OrderItemDto[];
+
   @IsOptional()
   @IsString()
-  notes?: string;
+  readonly notes?: string;
 }
