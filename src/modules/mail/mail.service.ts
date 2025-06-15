@@ -80,8 +80,11 @@ export class MailService {
       userName,
       currentYear: new Date().getFullYear(),
     };
-
-    await this.sendEmail(to, subject, templateName, context);
+    try {
+      await this.sendEmail(to, subject, templateName, context);
+    } catch (error) {
+      console.error("Failed to send verification email:", error);
+    }
   }
 
   public async sendResetPasswordEmail(
@@ -93,6 +96,26 @@ export class MailService {
     const templateName = "reset-password-email";
     const context = {
       resetPasswordLink,
+      userName,
+      currentYear: new Date().getFullYear(),
+    };
+
+    try {
+      await this.sendEmail(to, subject, templateName, context);
+    } catch (error) {
+      console.error("Failed to send reset password email:", error);
+    }
+  }
+
+  public async sendVerificationEmailOnly(
+    to: string,
+    verificationLink: string,
+    userName?: string,
+  ): Promise<void> {
+    const subject = "Verify your Bubblify account";
+    const templateName = "verif-new-email";
+    const context = {
+      verificationLink,
       userName,
       currentYear: new Date().getFullYear(),
     };

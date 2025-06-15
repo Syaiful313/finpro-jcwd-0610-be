@@ -158,9 +158,9 @@ model DeliveryJob {
 }
 
 model Address {
-  id          Int      @id @default(autoincrement())
+  id          Int       @id @default(autoincrement())
   userId      Int
-  user        User     @relation(fields: [userId], references: [id])
+  user        User      @relation(fields: [userId], references: [id])
   addressName String
   addressLine String
   district    String
@@ -169,9 +169,10 @@ model Address {
   postalCode  String
   latitude    Float
   longitude   Float
-  isPrimary   Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  isPrimary   Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
 
   @@map("addresses")
 }
@@ -256,7 +257,7 @@ model Order {
   latitude              Float?
   longitude             Float?
   orderNumber           String
-  orderStatus           OrderStatus
+  orderStatus           OrderStatus   @default(WAITING_FOR_PICKUP)
   scheduledPickupTime   DateTime?
   actualPickupTime      DateTime?
   scheduledDeliveryTime DateTime?
