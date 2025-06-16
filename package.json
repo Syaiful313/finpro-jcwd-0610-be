@@ -10,7 +10,8 @@
     "dev": "nodemon src/index.ts",
     "prepare": "husky",
     "test:integration": "cross-env TEST_TYPE=integration jest --runInBand",
-    "test:unit": "jest --forceExit --detectOpenHandles"
+    "test:unit": "jest --forceExit --detectOpenHandles",
+    "seed:sales": "ts-node seed-sales-data.ts"
   },
   "keywords": [],
   "author": "Daniel Reinhard",
