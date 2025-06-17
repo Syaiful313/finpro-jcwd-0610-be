@@ -266,6 +266,12 @@ model Order {
   totalWeight           Float?
   totalPrice            Float?
   paymentStatus         PaymentStatus @default(WAITING_PAYMENT)
+  xenditId              String?       @unique
+  invoiceUrl            String?
+  successRedirectUrl    String?
+  xenditExpiryDate      DateTime?
+  xenditPaymentStatus   String?
+  paidAt                DateTime?
   createdAt             DateTime      @default(now())
   updatedAt             DateTime      @updatedAt
 

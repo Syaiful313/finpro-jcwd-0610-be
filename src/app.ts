@@ -19,6 +19,7 @@ import { UserRouter } from "./modules/user/user.router";
 import { OrderRouter } from "./modules/order/order.router";
 import { EmployeeRouter } from "./modules/employee/employee.router";
 import { BypassRouter } from "./modules/bypass/bypass.router";
+import { SalesReportRouter } from "./modules/sales-report/sales-report.router";
 
 export default class App {
   public app;
@@ -51,6 +52,7 @@ export default class App {
     const orderRouter = container.resolve(OrderRouter);
     const employeeRouter = container.resolve(EmployeeRouter);
     const bypassRouter = container.resolve(BypassRouter);
+    const salesReportRouter = container.resolve(SalesReportRouter);
 
     this.app.get("/", (_, res) => {
       res.send("Welcome");
@@ -68,6 +70,7 @@ export default class App {
     this.app.use("/orders", orderRouter.getRouter());
     this.app.use("/employees", employeeRouter.getRouter());
     this.app.use("/bypass-requests", bypassRouter.getRouter());
+    this.app.use("/reports", salesReportRouter.getRouter());
   }
 
   private handleError(): void {

@@ -1,0 +1,581 @@
+import { PrismaClient, Role, OrderStatus, PaymentStatus } from '@prisma/client';
+import * as argon2 from 'argon2';
+
+const prisma = new PrismaClient();
+
+function randomDate(start: Date, end: Date): Date {
+  return new Date(start.getTime() + Math.random() * (end.getTime() - start.getTime()));
+}
+
+function generateOrderNumber(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const random = Math.floor(Math.random() * 9999).toString().padStart(4, '0');
+  return `ORD-${year}${month}${day}${random}`;
+}
+
+async function seedSalesReportData() {
+  console.log('🌱 Starting to seed sales report data...');
+
+  try {
+    console.log('📍 Creating outlets...');
+    const outletData = [
+      {
+        outletName: 'Laundry Yogyakarta 1',
+        address: 'Jl. Kaliurang No. 1, Yogyakarta',
+        latitude: -7.7645,
+        longitude: 110.3827,
+        serviceRadius: 10.0,
+        deliveryBaseFee: 5000,
+        deliveryPerKm: 2000,
+        isActive: true
+      },
+      {
+        outletName: 'Laundry Yogyakarta 2',
+        address: 'Jl. Parangtritis No. 5, Yogyakarta',
+        latitude: -7.8481,
+        longitude: 110.3453,
+        serviceRadius: 15.0,
+        deliveryBaseFee: 4000,
+        deliveryPerKm: 1500,
+        isActive: true
+      },
+      {
+        outletName: 'Laundry Yogyakarta 3',
+        address: 'Jl. Gejayan No. 9, Yogyakarta',
+        latitude: -7.7828,
+        longitude: 110.4081,
+        serviceRadius: 12.0,
+        deliveryBaseFee: 4500,
+        deliveryPerKm: 1800,
+        isActive: true
+      }
+    ];
+
+    const outlets = [];
+    for (const data of outletData) {
+      let outlet = await prisma.outlet.findFirst({
+        where: { 
+          outletName: data.outletName,
+          deletedAt: null
+        }
+      });
+
+      if (!outlet) {
+        outlet = await prisma.outlet.create({ data });
+        console.log(`✅ Created outlet: ${data.outletName}`);
+      } else {
+        console.log(`⚠️  Outlet already exists: ${data.outletName}`);
+      }
+      outlets.push(outlet);
+    }
+
+    console.log('👥 Creating users...');
+    const hashedPassword = await argon2.hash('password123');
+
+    const userData = [
+      // ✅ SUPER ADMIN
+      {
+        firstName: 'Super',
+        lastName: 'Admin',
+        email: 'admin@laundry.com',
+        password: hashedPassword,
+        role: Role.ADMIN,
+        phoneNumber: '081234567890',
+        isVerified: true
+      },
+      
+      // ✅ OUTLET ADMINS
+      {
+        firstName: 'Outlet1',
+        lastName: 'Admin',
+        email: 'outlet1.admin@laundry.com',
+        password: hashedPassword,
+        role: Role.OUTLET_ADMIN,
+        phoneNumber: '081234567891',
+        isVerified: true,
+        outletId: outlets[0].id
+      },
+      {
+        firstName: 'Outlet2',
+        lastName: 'Admin',
+        email: 'outlet2.admin@laundry.com',
+        password: hashedPassword,
+        role: Role.OUTLET_ADMIN,
+        phoneNumber: '081234567892',
+        isVerified: true,
+        outletId: outlets[1].id
+      },
+      {
+        firstName: 'Outlet3',
+        lastName: 'Admin',
+        email: 'outlet3.admin@laundry.com',
+        password: hashedPassword,
+        role: Role.OUTLET_ADMIN,
+        phoneNumber: '081234567893',
+        isVerified: true,
+        outletId: outlets[2].id
+      },
+
+      // ✅ DRIVERS (per outlet)
+      {
+        firstName: 'Driver1',
+        lastName: 'Outlet1',
+        email: 'driver1.outlet1@laundry.com',
+        password: hashedPassword,
+        role: Role.DRIVER,
+        phoneNumber: '081234567900',
+        isVerified: true
+      },
+      {
+        firstName: 'Driver2',
+        lastName: 'Outlet1',
+        email: 'driver2.outlet1@laundry.com',
+        password: hashedPassword,
+        role: Role.DRIVER,
+        phoneNumber: '081234567901',
+        isVerified: true
+      },
+      {
+        firstName: 'Driver1',
+        lastName: 'Outlet2',
+        email: 'driver1.outlet2@laundry.com',
+        password: hashedPassword,
+        role: Role.DRIVER,
+        phoneNumber: '081234567902',
+        isVerified: true
+      },
+      {
+        firstName: 'Driver1',
+        lastName: 'Outlet3',
+        email: 'driver1.outlet3@laundry.com',
+        password: hashedPassword,
+        role: Role.DRIVER,
+        phoneNumber: '081234567903',
+        isVerified: true
+      },
+
+      // ✅ WORKERS (washing, ironing, packing per outlet)
+      // Outlet 1 Workers
+      {
+        firstName: 'Washer1',
+        lastName: 'Outlet1',
+        email: 'washer1.outlet1@laundry.com',
+        password: hashedPassword,
+        role: Role.WORKER,
+        phoneNumber: '081234567910',
+        isVerified: true
+      },
+      {
+        firstName: 'Ironer1',
+        lastName: 'Outlet1',
+        email: 'ironer1.outlet1@laundry.com',
+        password: hashedPassword,
+        role: Role.WORKER,
+        phoneNumber: '081234567911',
+        isVerified: true
+      },
+      {
+        firstName: 'Packer1',
+        lastName: 'Outlet1',
+        email: 'packer1.outlet1@laundry.com',
+        password: hashedPassword,
+        role: Role.WORKER,
+        phoneNumber: '081234567912',
+        isVerified: true
+      },
+      
+      // Outlet 2 Workers
+      {
+        firstName: 'Washer1',
+        lastName: 'Outlet2',
+        email: 'washer1.outlet2@laundry.com',
+        password: hashedPassword,
+        role: Role.WORKER,
+        phoneNumber: '081234567920',
+        isVerified: true
+      },
+      {
+        firstName: 'Ironer1',
+        lastName: 'Outlet2',
+        email: 'ironer1.outlet2@laundry.com',
+        password: hashedPassword,
+        role: Role.WORKER,
+        phoneNumber: '081234567921',
+        isVerified: true
+      },
+      {
+        firstName: 'Packer1',
+        lastName: 'Outlet2',
+        email: 'packer1.outlet2@laundry.com',
+        password: hashedPassword,
+        role: Role.WORKER,
+        phoneNumber: '081234567922',
+        isVerified: true
+      },
+
+      // Outlet 3 Workers
+      {
+        firstName: 'Washer1',
+        lastName: 'Outlet3',
+        email: 'washer1.outlet3@laundry.com',
+        password: hashedPassword,
+        role: Role.WORKER,
+        phoneNumber: '081234567930',
+        isVerified: true
+      },
+      {
+        firstName: 'Ironer1',
+        lastName: 'Outlet3',
+        email: 'ironer1.outlet3@laundry.com',
+        password: hashedPassword,
+        role: Role.WORKER,
+        phoneNumber: '081234567931',
+        isVerified: true
+      },
+      {
+        firstName: 'Packer1',
+        lastName: 'Outlet3',
+        email: 'packer1.outlet3@laundry.com',
+        password: hashedPassword,
+        role: Role.WORKER,
+        phoneNumber: '081234567932',
+        isVerified: true
+      },
+
+      // ✅ CUSTOMERS
+      {
+        firstName: 'John',
+        lastName: 'Doe',
+        email: 'john.doe@gmail.com',
+        password: hashedPassword,
+        role: Role.CUSTOMER,
+        phoneNumber: '081234567894',
+        isVerified: true
+      },
+      {
+        firstName: 'Jane',
+        lastName: 'Smith',
+        email: 'jane.smith@gmail.com',
+        password: hashedPassword,
+        role: Role.CUSTOMER,
+        phoneNumber: '081234567895',
+        isVerified: true
+      },
+      {
+        firstName: 'Bob',
+        lastName: 'Wilson',
+        email: 'bob.wilson@gmail.com',
+        password: hashedPassword,
+        role: Role.CUSTOMER,
+        phoneNumber: '081234567896',
+        isVerified: true
+      },
+      {
+        firstName: 'Alice',
+        lastName: 'Johnson',
+        email: 'alice.johnson@gmail.com',
+        password: hashedPassword,
+        role: Role.CUSTOMER,
+        phoneNumber: '081234567897',
+        isVerified: true
+      },
+      {
+        firstName: 'Charlie',
+        lastName: 'Brown',
+        email: 'charlie.brown@gmail.com',
+        password: hashedPassword,
+        role: Role.CUSTOMER,
+        phoneNumber: '081234567898',
+        isVerified: true
+      }
+    ];
+
+    const users = [];
+    for (const data of userData) {
+      let user = await prisma.user.findFirst({
+        where: { 
+          email: data.email,
+          deletedAt: null
+        }
+      });
+
+      if (!user) {
+        user = await prisma.user.create({ data });
+        console.log(`✅ Created user: ${data.email} - Role: ${data.role}${data.outletId ? ` - OutletId: ${data.outletId}` : ''}`);
+      } else {
+        // ✅ Update existing OUTLET_ADMIN with outletId if missing
+        if (data.role === Role.OUTLET_ADMIN && !user.outletId && data.outletId) {
+          user = await prisma.user.update({
+            where: { id: user.id },
+            data: { outletId: data.outletId }
+          });
+          console.log(`✅ Updated user ${data.email} with outletId: ${data.outletId}`);
+        } else {
+          console.log(`⚠️  User already exists: ${data.email}`);
+        }
+      }
+      users.push(user);
+    }
+
+    // ✅ CREATE EMPLOYEE RECORDS for OUTLET_ADMIN, DRIVER, and WORKER
+    console.log('👔 Creating employee records...');
+    
+    const employeeTypes = [
+      'OUTLET_ADMIN',
+      'DRIVER', 
+      'WORKER'
+    ];
+
+    for (const user of users) {
+      if (employeeTypes.includes(user.role)) {
+        let outletId: number;
+
+        // Determine outlet assignment based on role and email
+        if (user.role === 'OUTLET_ADMIN') {
+          outletId = user.outletId!; // Already assigned in user table
+        } else if (user.role === 'DRIVER') {
+          // Extract outlet from email pattern: driver1.outlet1@laundry.com
+          const emailMatch = user.email.match(/outlet(\d+)/);
+          const outletNumber = emailMatch ? parseInt(emailMatch[1]) : 1;
+          outletId = outlets[outletNumber - 1]?.id || outlets[0].id;
+        } else if (user.role === 'WORKER') {
+          // Extract outlet from email pattern: washer1.outlet1@laundry.com
+          const emailMatch = user.email.match(/outlet(\d+)/);
+          const outletNumber = emailMatch ? parseInt(emailMatch[1]) : 1;
+          outletId = outlets[outletNumber - 1]?.id || outlets[0].id;
+        } else {
+          continue;
+        }
+
+        // Check if employee record already exists
+        const existingEmployee = await prisma.employee.findFirst({
+          where: {
+            userId: user.id,
+            deletedAt: null
+          }
+        });
+
+        if (!existingEmployee) {
+          // Generate dummy NPWP for employee
+          const npwp = `${String(Math.floor(Math.random() * 900000000000000) + 100000000000000)}`;
+          
+          const employeeData = {
+            userId: user.id,
+            outletId: outletId,
+            npwp: npwp, // Required field
+            // Add other fields if they exist and are required in your schema
+          };
+
+          const employee = await prisma.employee.create({
+            data: employeeData
+          });
+
+          console.log(`✅ Created employee: ${user.email} - ${user.role} at Outlet ${outletId}`);
+        } else {
+          console.log(`⚠️  Employee record already exists for: ${user.email}`);
+        }
+      }
+    }
+
+    console.log('👕 Creating laundry items...');
+    const laundryItemsData = [
+      { name: 'Kaos', category: 'Pakaian Atas', basePrice: 5000, pricingType: 'PER_PIECE' as const },
+      { name: 'Kemeja', category: 'Pakaian Atas', basePrice: 8000, pricingType: 'PER_PIECE' as const },
+      { name: 'Celana Panjang', category: 'Pakaian Bawah', basePrice: 10000, pricingType: 'PER_PIECE' as const },
+      { name: 'Celana Pendek', category: 'Pakaian Bawah', basePrice: 7000, pricingType: 'PER_PIECE' as const },
+      { name: 'Celana Dalam', category: 'Pakaian Dalam', basePrice: 3000, pricingType: 'PER_PIECE' as const },
+      { name: 'Jaket', category: 'Pakaian Luar', basePrice: 15000, pricingType: 'PER_PIECE' as const }
+    ];
+
+    const laundryItems = [];
+    for (const itemData of laundryItemsData) {
+      let item = await prisma.laundryItem.findFirst({
+        where: { 
+          name: itemData.name,
+          deletedAt: null
+        }
+      });
+
+      if (!item) {
+        item = await prisma.laundryItem.create({ data: itemData });
+        console.log(`✅ Created laundry item: ${itemData.name}`);
+      } else {
+        console.log(`⚠️  Laundry item already exists: ${itemData.name}`);
+      }
+      laundryItems.push(item);
+    }
+
+    console.log('📦 Creating orders with diverse date ranges...');
+    const customers = users.filter(u => u.role === Role.CUSTOMER);
+    
+    // ✅ CREATE ORDERS FOR DIFFERENT PERIODS (for better testing)
+    const periods = [
+      { start: new Date('2024-01-01'), end: new Date('2024-01-31'), count: 30 }, // January 2024
+      { start: new Date('2024-02-01'), end: new Date('2024-02-29'), count: 25 }, // February 2024
+      { start: new Date('2024-03-01'), end: new Date('2024-03-31'), count: 35 }, // March 2024
+      { start: new Date('2025-01-01'), end: new Date('2025-01-31'), count: 40 }, // January 2025
+      { start: new Date('2025-02-01'), end: new Date('2025-02-28'), count: 30 }, // February 2025
+      { start: new Date('2025-03-01'), end: new Date('2025-03-31'), count: 45 }, // March 2025
+    ];
+
+    const orders = [];
+    let totalOrderCount = 0;
+
+    for (const period of periods) {
+      console.log(`📅 Creating ${period.count} orders for ${period.start.toDateString()} - ${period.end.toDateString()}`);
+      
+      for (let i = 0; i < period.count; i++) {
+        const customer = customers[Math.floor(Math.random() * customers.length)];
+        const outlet = outlets[Math.floor(Math.random() * outlets.length)];
+        const orderDate = randomDate(period.start, period.end);
+        const paidDate = new Date(orderDate.getTime() + Math.random() * 24 * 60 * 60 * 1000);
+        const totalWeight = Math.round((Math.random() * 4 + 1) * 10) / 10;
+        const totalPrice: number = Math.floor(Math.random() * 150000 + 50000);
+        const deliveryFee: number = Math.floor(Math.random() * 15000 + 5000);
+        const orderNumber = generateOrderNumber(orderDate);
+
+        const existingOrder = await prisma.order.findFirst({ where: { orderNumber } });
+        if (existingOrder) {
+          console.log(`⚠️  Order ${orderNumber} already exists, skipping...`);
+          orders.push(existingOrder);
+          continue;
+        }
+
+        const order = await prisma.order.create({
+          data: {
+            userId: customer.id,
+            outletId: outlet.id,
+            addressLine: `Jl. Random ${totalOrderCount + 1}`,
+            district: 'Umbulharjo',
+            city: 'Yogyakarta',
+            province: 'DIY',
+            postalCode: '55161',
+            latitude: outlet.latitude + (Math.random() - 0.5) * 0.1,
+            longitude: outlet.longitude + (Math.random() - 0.5) * 0.1,
+            orderNumber,
+            orderStatus: OrderStatus.COMPLETED,
+            paymentStatus: PaymentStatus.PAID,
+            totalWeight,
+            totalPrice,
+            totalDeliveryFee: deliveryFee,
+            paidAt: paidDate,
+            createdAt: orderDate,
+            updatedAt: paidDate
+          }
+        });
+        orders.push(order);
+        totalOrderCount++;
+
+        // Create order items
+        const itemCount = Math.floor(Math.random() * 3) + 2;
+        for (let j = 0; j < itemCount; j++) {
+          const item = laundryItems[Math.floor(Math.random() * laundryItems.length)];
+          const quantity = Math.floor(Math.random() * 5) + 1;
+          const itemWeight = quantity * 0.2;
+          const itemTotalPrice = quantity * item.basePrice;
+
+          await prisma.orderItem.create({
+            data: {
+              orderId: order.uuid,
+              laundryItemId: item.id,
+              quantity,
+              weight: itemWeight,
+              pricePerUnit: item.basePrice,
+              totalPrice: itemTotalPrice
+            }
+          });
+        }
+      }
+    }
+
+    console.log('✅ Sales report data seeding completed!');
+    console.log(`📊 Created:`);
+    console.log(`   - ${outlets.length} outlets`);
+    console.log(`   - ${users.length} users`);
+    console.log(`   - ${laundryItems.length} laundry items`);
+    console.log(`   - ${orders.length} orders across multiple periods`);
+
+    // ✅ DETAILED OUTLET SUMMARY
+    console.log('\n📈 OUTLET SALES SUMMARY:');
+    for (const outlet of outlets) {
+      const outletOrders = orders.filter(o => o.outletId === outlet.id);
+      const outletIncome = outletOrders.reduce((sum, o) => sum + (o.totalPrice || 0), 0);
+      const outletAdmin = users.find(u => u.role === Role.OUTLET_ADMIN && u.outletId === outlet.id);
+      
+      // Get employee count per outlet
+      const employees = await prisma.employee.findMany({
+        where: { 
+          outletId: outlet.id,
+          deletedAt: null
+        },
+        include: {
+          user: {
+            select: {
+              email: true,
+              role: true
+            }
+          }
+        }
+      });
+      
+      console.log(`   🏪 ${outlet.outletName}:`);
+      console.log(`      - Admin: ${outletAdmin?.email || 'No admin assigned'}`);
+      console.log(`      - Employees: ${employees.length}`);
+      console.log(`        - Drivers: ${employees.filter(e => e.user.role === 'DRIVER').length}`);
+      console.log(`        - Workers: ${employees.filter(e => e.user.role === 'WORKER').length}`);
+      console.log(`      - Orders: ${outletOrders.length}`);
+      console.log(`      - Total Income: Rp ${outletIncome.toLocaleString('id-ID')}`);
+      console.log(`      - Avg Order Value: Rp ${outletOrders.length > 0 ? Math.round(outletIncome / outletOrders.length).toLocaleString('id-ID') : 0}`);
+    }
+
+    // ✅ ROLE SUMMARY
+    console.log('\n👥 USER ROLE SUMMARY:');
+    const roleStats = users.reduce((acc, user) => {
+      acc[user.role] = (acc[user.role] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+    
+    Object.entries(roleStats).forEach(([role, count]) => {
+      console.log(`   - ${role}: ${count} users`);
+    });
+
+    // ✅ EMPLOYEE SUMMARY
+    const totalEmployees = await prisma.employee.count({
+      where: { deletedAt: null }
+    });
+    console.log(`\n👔 EMPLOYEE SUMMARY:`);
+    console.log(`   - Total Employee Records: ${totalEmployees}`);
+
+    // ✅ PERIOD SUMMARY
+    console.log('\n📅 PERIOD SUMMARY:');
+    for (const period of periods) {
+      const periodOrders = orders.filter(o => {
+        const orderDate = new Date(o.createdAt);
+        return orderDate >= period.start && orderDate <= period.end;
+      });
+      const periodIncome = periodOrders.reduce((sum, o) => sum + (o.totalPrice || 0), 0);
+      
+      console.log(`   📆 ${period.start.toISOString().split('T')[0]} to ${period.end.toISOString().split('T')[0]}:`);
+      console.log(`      - Orders: ${periodOrders.length}`);
+      console.log(`      - Income: Rp ${periodIncome.toLocaleString('id-ID')}`);
+    }
+
+  } catch (error) {
+    console.error('❌ Error seeding data:', error);
+    throw error;
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+if (require.main === module) {
+  seedSalesReportData()
+    .catch((error) => {
+      console.error(error);
+      process.exit(1);
+    });
+}
+
+export { seedSalesReportData };
