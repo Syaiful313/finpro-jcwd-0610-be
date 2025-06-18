@@ -140,11 +140,17 @@ export class NotificationService {
     dto: GetNotificationsDTO,
   ) => {};
 
+  markAsRead = async (authUserId: number, notificationId: number) => {};
+
+  markAllAsRead = async (authUserId: number) => {};
+
   getUserNotification = async (authUserId: number, limit: number) => {
     const user = await this.prisma.user.findFirst({
-      where: { id: authUserId }
-    })
-    if (!user) { throw new ApiError("User not found", 400) }
+      where: { id: authUserId },
+    });
+    if (!user) {
+      throw new ApiError("User not found", 400);
+    }
     const notifications = await this.prisma.notification.findMany({
       where: {
         notifType: {
@@ -166,8 +172,7 @@ export class NotificationService {
         createdAt: "desc",
       },
       take: limit,
-      include: {
-      },
+      include: {},
     });
     return notifications;
   };
