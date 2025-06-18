@@ -23,6 +23,11 @@ export class NotificationRouter {
       verifyRole(["DRIVER"]),
       this.notificationController.getDriverNotifications,
     );
+    this.router.get(
+      "/user",
+      this.jwtMiddleware.verifyToken(env().JWT_SECRET),
+      this.notificationController.getUserNotifications,
+    );
   };
   getRouter(): Router {
     return this.router;

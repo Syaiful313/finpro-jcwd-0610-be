@@ -10,7 +10,8 @@
     "dev": "nodemon src/index.ts",
     "prepare": "husky",
     "test:integration": "cross-env TEST_TYPE=integration jest --runInBand",
-    "test:unit": "jest --forceExit --detectOpenHandles"
+    "test:unit": "jest --forceExit --detectOpenHandles",
+    "seed:sales": "ts-node seed-sales-data.ts"
   },
   "keywords": [],
   "author": "Daniel Reinhard",
@@ -35,7 +36,8 @@
     "nodemailer": "^6.9.16",
     "prisma": "^6.2.1",
     "reflect-metadata": "^0.2.2",
-    "tsyringe": "^4.8.0"
+    "tsyringe": "^4.8.0",
+    "xendit-node": "^7.0.0"
   },
   "devDependencies": {
     "@commitlint/cli": "^19.6.1",

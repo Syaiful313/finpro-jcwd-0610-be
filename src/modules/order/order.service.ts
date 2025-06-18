@@ -2,13 +2,13 @@ import { OrderStatus, Prisma, Role, WorkerTypes } from "@prisma/client";
 import { injectable } from "tsyringe";
 import { ApiError } from "../../utils/api-error";
 import { DistanceCalculator } from "../../utils/distance.calculator";
+import { haversine } from "../../utils/haversine-distance";
 import { PaginationService } from "../pagination/pagination.service";
 import { PrismaService } from "../prisma/prisma.service";
+import { CreatePickupOrderDTO } from "./dto/createPickupAndOrder.dto";
 import { GetOrdersDTO } from "./dto/get-orders.dto";
 import { GetPendingOrdersDTO } from "./dto/get-pending-orders.dto";
 import { ProcessOrderDTO } from "./dto/proses-order.dto";
-import { CreatePickupOrderDTO } from "./dto/createPickupAndOrder.dto";
-import { haversine } from "../../utils/haversine-distance";
 
 export interface CurrentUser {
   id: number;
@@ -1666,6 +1666,13 @@ export class OrderService {
       return dist < closestDist ? current : closest;
     });
 
+    const distanceKm = haversine(
+      address.latitude,
+      address.longitude,
+      closestOutlet.latitude,
+      closestOutlet.longitude
+    );
+
     const orderNumber = `BF-${Date.now()}`;
 
     const newOrder = await this.prisma.order.create({
@@ -1681,6 +1688,7 @@ export class OrderService {
         latitude: address.latitude,
         longitude: address.longitude,
         scheduledPickupTime: new Date(scheduledPickupTime),
+        totalDeliveryFee: distanceKm * closestOutlet.deliveryBaseFee
       },
     });
 
@@ -1748,5 +1756,36 @@ export class OrderService {
     }
 
     return order;
+  };
+
+  confirmOrder = async (userId: number, uuid: string) => {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new ApiError("Invalid user id", 404);
+    }
+
+    const order = await this.prisma.order.findUnique({
+      where: { uuid },
+    });
+
+    if (!order) {
+      throw new ApiError("Order not found", 400);
+    }
+
+    if (order.userId !== userId) {
+      throw new ApiError("Unauthorised", 400);
+    }
+
+    const updatedOrder = await this.prisma.order.update({
+      where: { uuid },
+      data: { 
+        orderStatus: "COMPLETED"
+      }
+    })
+
+    return updatedOrder;
   };
 }
