@@ -25,4 +25,19 @@ export class NotificationController {
       next(error);
     }
   };
+
+  getUserNotifications = async (
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ) => {
+    try {
+      const authUserId = Number(req.user!.id);
+      const limit = Number(req.query.limit) || 5;
+      const result = await this.notificationService.getUserNotification(authUserId, limit);
+      res.status(200).send(result);
+    } catch (error) {
+      next(error);
+    }
+  };
 }
