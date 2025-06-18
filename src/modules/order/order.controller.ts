@@ -282,4 +282,15 @@ export class OrderController {
       next(error);
     }
   };
+
+  confirmOrder = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const authUserId = req.user!.id;
+      const uuid = req.params.uuid;
+      const result = await this.orderService.confirmOrder(authUserId, uuid);
+      res.status(200).send(result);
+    } catch (error) {
+      next(error);
+    }
+  };
 }

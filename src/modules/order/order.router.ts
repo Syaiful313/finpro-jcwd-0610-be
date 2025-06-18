@@ -79,6 +79,12 @@ export class OrderRouter {
       this.jwtMiddleware.verifyToken(env().JWT_SECRET),
       this.orderController.getDetailOrder,
     );
+
+    this.router.patch(
+      "/confirm/:uuid",
+      this.jwtMiddleware.verifyToken(env().JWT_SECRET),
+      this.orderController.confirmOrder,
+    );
   };
 
   getRouter(): Router {

@@ -13,12 +13,7 @@ export class DriverController {
   getDriverJobs = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const authUserId = req.user?.id;
-      const queryWithStatus = {
-        ...req.query,
-        status: req.query.type,
-      };
-
-      const queryDto = plainToInstance(GetDriverDTO, queryWithStatus);
+      const queryDto = plainToInstance(GetDriverDTO, req.query);
 
       const result = await this.driverService.getDriverJobs(
         Number(authUserId),
@@ -112,19 +107,12 @@ export class DriverController {
 
   completePickUp = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      console.log("=== DEBUG COMPLETE PICKUP ===");
-      console.log("req.params:", req.params);
-      console.log("req.files:", req.files);
-      console.log("req.body:", req.body);
-      console.log("req.headers content-type:", req.headers["content-type"]);
       const authUserId = req.user?.id;
       const pickupJobId = parseInt(req.params.pickupJobId);
       const files = req.files as { [fieldname: string]: Express.Multer.File[] };
       const pickUpPhotos = files?.pickUpPhotos?.[0];
       if (!Boolean(pickUpPhotos)) throw new ApiError("Image is required", 400);
-      console.log("authUserId:", authUserId);
-      console.log("pickupJobId:", pickupJobId);
-      console.log("pickUpPhotos:", pickUpPhotos ? "File exists" : "No file");
+
       const body = req.body as CompletePickupDto;
       const result = await this.driverService.completePickUp(
         Number(authUserId),

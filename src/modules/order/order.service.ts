@@ -1983,6 +1983,13 @@ export class OrderService {
       return dist < closestDist ? current : closest;
     });
 
+    const distanceKm = haversine(
+      address.latitude,
+      address.longitude,
+      closestOutlet.latitude,
+      closestOutlet.longitude
+    );
+
     const orderNumber = `BF-${Date.now()}`;
 
     const newOrder = await this.prisma.order.create({
@@ -1998,6 +2005,7 @@ export class OrderService {
         latitude: address.latitude,
         longitude: address.longitude,
         scheduledPickupTime: new Date(scheduledPickupTime),
+        totalDeliveryFee: distanceKm * closestOutlet.deliveryBaseFee
       },
     });
 
@@ -2065,5 +2073,36 @@ export class OrderService {
     }
 
     return order;
+  };
+
+  confirmOrder = async (userId: number, uuid: string) => {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new ApiError("Invalid user id", 404);
+    }
+
+    const order = await this.prisma.order.findUnique({
+      where: { uuid },
+    });
+
+    if (!order) {
+      throw new ApiError("Order not found", 400);
+    }
+
+    if (order.userId !== userId) {
+      throw new ApiError("Unauthorised", 400);
+    }
+
+    const updatedOrder = await this.prisma.order.update({
+      where: { uuid },
+      data: { 
+        orderStatus: "COMPLETED"
+      }
+    })
+
+    return updatedOrder;
   };
 }

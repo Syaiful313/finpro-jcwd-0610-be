@@ -5,6 +5,7 @@ import { PaginationService } from "../pagination/pagination.service";
 import { CloudinaryService } from "../cloudinary/cloudinary.service";
 import { GetNotificationsDTO } from "./dto/get-notif.dto";
 import { Prisma } from "@prisma/client";
+import { ApiError } from "../../utils/api-error";
 
 @injectable()
 export class NotificationService {
@@ -138,4 +139,41 @@ export class NotificationService {
     authUserId: number,
     dto: GetNotificationsDTO,
   ) => {};
+
+  markAsRead = async (authUserId: number, notificationId: number) => {};
+
+  markAllAsRead = async (authUserId: number) => {};
+
+  getUserNotification = async (authUserId: number, limit: number) => {
+    const user = await this.prisma.user.findFirst({
+      where: { id: authUserId },
+    });
+    if (!user) {
+      throw new ApiError("User not found", 400);
+    }
+    const notifications = await this.prisma.notification.findMany({
+      where: {
+        notifType: {
+          in: [
+            "PICKUP_STARTED",
+            "PICKUP_COMPLETED",
+            "DELIVERY_STARTED",
+            "DELIVERY_COMPLETED",
+            "ORDER_COMPLETED",
+          ],
+        },
+        Order: {
+          user: {
+            id: authUserId,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+      take: limit,
+      include: {},
+    });
+    return notifications;
+  };
 }
