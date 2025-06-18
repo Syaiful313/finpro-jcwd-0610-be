@@ -11,13 +11,214 @@ export interface CurrentUser {
 
 @injectable()
 export class OrderValidation {
+  private static readonly ERROR_MESSAGES = {
+    ORDER_NOT_FOUND: "Order tidak ditemukan",
+    INSUFFICIENT_PERMISSION: "Permission tidak cukup",
+    OUTLET_ACCESS_DENIED: "Anda tidak memiliki akses ke order ini",
+    OUTLET_ADMIN_RESTRICTION:
+      "Outlet admin hanya bisa melihat order dari outlet sendiri",
+    OUTLET_NOT_FOUND: "Outlet tidak ditemukan",
+    EMPLOYEE_NOT_FOUND: "Employee tidak ditemukan",
+    CUSTOMER_NOT_FOUND: "Customer tidak ditemukan",
+    INVALID_OUTLET_ID: "Outlet ID tidak valid",
+  } as const;
+
+  private static readonly STATION_NAMES = {
+    WASHING: "Washing Station",
+    IRONING: "Ironing Station",
+    PACKING: "Packing Station",
+  } as const;
+
+  private static readonly TIMELINE_ICONS = {
+    ORDER: "📝",
+    PICKUP: "🚚",
+    WASHING: "🧼",
+    IRONING: "👔",
+    PACKING: "📦",
+    DELIVERY: "🚛",
+    COMPLETED: "✅",
+  } as const;
+
   constructor(private readonly prisma: PrismaService) {}
 
   validateOrderDetailAccess = async (
     currentUser: CurrentUser,
     orderId: string,
   ): Promise<any> => {
+    const order = await this.fetchOrderForValidation(orderId);
+
+    if (!order) {
+      throw new ApiError(OrderValidation.ERROR_MESSAGES.ORDER_NOT_FOUND, 404);
+    }
+
+    await this.validateOrderAccess(currentUser, order.outletId);
+    return this.transformOrderDetail(order);
+  };
+
+  validateOrderListAccess = async (
+    currentUser: CurrentUser,
+    outletId?: number,
+  ): Promise<{ outletId?: number }> => {
+    if (currentUser.role === Role.ADMIN) {
+      if (outletId) {
+        await this.validateOutlet(outletId);
+        return { outletId };
+      }
+      return {};
+    }
+
+    if (currentUser.role === Role.OUTLET_ADMIN) {
+      const userOutlet = await this.getUserOutlet(currentUser.id);
+
+      if (outletId && outletId !== userOutlet.outletId) {
+        throw new ApiError(
+          OrderValidation.ERROR_MESSAGES.OUTLET_ADMIN_RESTRICTION,
+          403,
+        );
+      }
+
+      return { outletId: userOutlet.outletId };
+    }
+
+    throw new ApiError(
+      OrderValidation.ERROR_MESSAGES.INSUFFICIENT_PERMISSION,
+      403,
+    );
+  };
+
+  validateOrderUpdateAccess = async (
+    currentUser: CurrentUser,
+    orderId: string,
+  ): Promise<any> => {
+    const order = await this.validateOrderExists(orderId);
+    await this.validateOrderAccess(currentUser, order.outletId);
+    return order;
+  };
+
+  validateSingleOrderAccess = async (
+    currentUser: CurrentUser,
+    orderId: string,
+  ): Promise<any> => {
+    const order = await this.validateOrderExists(orderId);
+    await this.validateOrderAccess(currentUser, order.outletId);
+    return order;
+  };
+
+  validateEmployeeExists = async (employeeId: number): Promise<void> => {
+    const employee = await this.prisma.employee.findUnique({
+      where: { id: employeeId },
+      select: { id: true },
+    });
+
+    if (!employee) {
+      throw new ApiError(
+        OrderValidation.ERROR_MESSAGES.EMPLOYEE_NOT_FOUND,
+        404,
+      );
+    }
+  };
+
+  validateCustomerExists = async (customerId: number): Promise<void> => {
+    const customer = await this.prisma.user.findUnique({
+      where: {
+        id: customerId,
+        role: Role.CUSTOMER,
+        deletedAt: null,
+      },
+      select: { id: true },
+    });
+
+    if (!customer) {
+      throw new ApiError(
+        OrderValidation.ERROR_MESSAGES.CUSTOMER_NOT_FOUND,
+        404,
+      );
+    }
+  };
+
+  validateOutlet = async (outletId: number): Promise<void> => {
+    if (isNaN(outletId) || outletId <= 0) {
+      throw new ApiError(OrderValidation.ERROR_MESSAGES.INVALID_OUTLET_ID, 400);
+    }
+
+    const outletExists = await this.prisma.outlet.findUnique({
+      where: { id: outletId },
+      select: { id: true, isActive: true },
+    });
+
+    if (!outletExists) {
+      throw new ApiError(OrderValidation.ERROR_MESSAGES.OUTLET_NOT_FOUND, 404);
+    }
+  };
+
+  getUserOutlet = async (userId: number): Promise<{ outletId: number }> => {
+    const userEmployee = await this.prisma.employee.findFirst({
+      where: { userId },
+      select: { outletId: true },
+    });
+
+    if (!userEmployee) {
+      throw new ApiError("Data employee tidak ditemukan", 400);
+    }
+
+    return userEmployee;
+  };
+
+  validateOrderExists = async (orderId: string): Promise<any> => {
     const order = await this.prisma.order.findUnique({
+      where: { uuid: orderId },
+      include: {
+        user: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
+        outlet: {
+          select: {
+            id: true,
+            outletName: true,
+          },
+        },
+      },
+    });
+
+    if (!order) {
+      throw new ApiError(OrderValidation.ERROR_MESSAGES.ORDER_NOT_FOUND, 404);
+    }
+
+    return order;
+  };
+
+  private async validateOrderAccess(
+    currentUser: CurrentUser,
+    orderOutletId: number,
+  ): Promise<void> {
+    if (currentUser.role === Role.ADMIN) {
+      return;
+    }
+
+    if (currentUser.role === Role.OUTLET_ADMIN) {
+      const userOutlet = await this.getUserOutlet(currentUser.id);
+      if (orderOutletId !== userOutlet.outletId) {
+        throw new ApiError(
+          OrderValidation.ERROR_MESSAGES.OUTLET_ACCESS_DENIED,
+          403,
+        );
+      }
+      return;
+    }
+
+    throw new ApiError(
+      OrderValidation.ERROR_MESSAGES.INSUFFICIENT_PERMISSION,
+      403,
+    );
+  }
+
+  private async fetchOrderForValidation(orderId: string) {
+    return await this.prisma.order.findUnique({
       where: { uuid: orderId },
       select: {
         uuid: true,
@@ -163,168 +364,11 @@ export class OrderValidation {
         },
       },
     });
-
-    if (!order) {
-      throw new ApiError("Order tidak ditemukan", 404);
-    }
-
-    await this.validateOrderAccess(currentUser, order.outletId);
-
-    return this.transformOrderDetail(order);
-  };
-
-  validateOrderListAccess = async (
-    currentUser: CurrentUser,
-    outletId?: number,
-  ): Promise<{ outletId?: number }> => {
-    if (currentUser.role === Role.ADMIN) {
-      if (outletId) {
-        await this.validateOutlet(outletId);
-        return { outletId };
-      }
-      return {};
-    }
-
-    if (currentUser.role === Role.OUTLET_ADMIN) {
-      const userOutlet = await this.getUserOutlet(currentUser.id);
-
-      if (outletId && outletId !== userOutlet.outletId) {
-        throw new ApiError(
-          "Outlet admin hanya bisa melihat order dari outlet sendiri",
-          403,
-        );
-      }
-
-      return { outletId: userOutlet.outletId };
-    }
-
-    throw new ApiError("Permission tidak cukup untuk melihat orders", 403);
-  };
-
-  validateOrderUpdateAccess = async (
-    currentUser: CurrentUser,
-    orderId: string,
-  ): Promise<any> => {
-    const order = await this.validateOrderExists(orderId);
-    await this.validateOrderAccess(currentUser, order.outletId);
-    return order;
-  };
-
-  private async validateOrderAccess(
-    currentUser: CurrentUser,
-    orderOutletId: number,
-  ): Promise<void> {
-    if (currentUser.role === Role.ADMIN) {
-      return;
-    }
-
-    if (currentUser.role === Role.OUTLET_ADMIN) {
-      const userOutlet = await this.getUserOutlet(currentUser.id);
-      if (orderOutletId !== userOutlet.outletId) {
-        throw new ApiError("Anda tidak memiliki akses ke order ini", 403);
-      }
-      return;
-    }
-
-    throw new ApiError("Permission tidak cukup", 403);
   }
-
-  validateOutlet = async (outletId: number): Promise<void> => {
-    if (isNaN(outletId) || outletId <= 0) {
-      throw new ApiError("Outlet ID tidak valid", 400);
-    }
-
-    const outletExists = await this.prisma.outlet.findUnique({
-      where: { id: outletId },
-      select: { id: true, isActive: true },
-    });
-
-    if (!outletExists) {
-      throw new ApiError("Outlet tidak ditemukan", 404);
-    }
-  };
-
-  getUserOutlet = async (userId: number): Promise<{ outletId: number }> => {
-    const userEmployee = await this.prisma.employee.findFirst({
-      where: { userId },
-      select: { outletId: true },
-    });
-
-    if (!userEmployee) {
-      throw new ApiError("Data employee tidak ditemukan", 400);
-    }
-
-    return userEmployee;
-  };
-
-  validateOrderExists = async (orderId: string): Promise<any> => {
-    const order = await this.prisma.order.findUnique({
-      where: { uuid: orderId },
-      include: {
-        user: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            email: true,
-          },
-        },
-        outlet: {
-          select: {
-            id: true,
-            outletName: true,
-          },
-        },
-      },
-    });
-
-    if (!order) {
-      throw new ApiError("Order tidak ditemukan", 404);
-    }
-
-    return order;
-  };
-
-  validateSingleOrderAccess = async (
-    currentUser: CurrentUser,
-    orderId: string,
-  ): Promise<any> => {
-    const order = await this.validateOrderExists(orderId);
-    await this.validateOrderAccess(currentUser, order.outletId);
-    return order;
-  };
-
-  validateEmployeeExists = async (employeeId: number): Promise<void> => {
-    const employee = await this.prisma.employee.findUnique({
-      where: { id: employeeId },
-      select: { id: true },
-    });
-
-    if (!employee) {
-      throw new ApiError("Employee tidak ditemukan", 404);
-    }
-  };
-
-  validateCustomerExists = async (customerId: number): Promise<void> => {
-    const customer = await this.prisma.user.findUnique({
-      where: {
-        id: customerId,
-        role: Role.CUSTOMER,
-        deletedAt: null,
-      },
-      select: { id: true },
-    });
-
-    if (!customer) {
-      throw new ApiError("Customer tidak ditemukan", 404);
-    }
-  };
 
   private transformOrderDetail(order: any): any {
     const workProgress = this.calculateWorkProgress(order.orderWorkProcess);
-
     const timeline = this.generateOrderTimeline(order);
-
     const pricingBreakdown = this.calculatePricingBreakdown(
       order.orderItems,
       order.totalDeliveryFee,
@@ -383,47 +427,15 @@ export class OrderValidation {
 
       workProcess: {
         progress: workProgress,
-        current: order.orderWorkProcess.find((wp: any) => !wp.completedAt)
-          ? {
-              ...this.transformWorkProcess(
-                order.orderWorkProcess.find((wp: any) => !wp.completedAt),
-              ),
-              station: this.getStationName(
-                order.orderWorkProcess.find((wp: any) => !wp.completedAt)
-                  .workerType,
-              ),
-            }
-          : null,
-        completed: order.orderWorkProcess
-          .filter((wp: any) => wp.completedAt)
-          .map((wp: any) => ({
-            ...this.transformWorkProcess(wp),
-            station: this.getStationName(wp.workerType),
-            duration: this.calculateDuration(wp.createdAt, wp.completedAt),
-          })),
-        all: order.orderWorkProcess.map((wp: any) => ({
-          ...this.transformWorkProcess(wp),
-          station: this.getStationName(wp.workerType),
-        })),
+        current: this.findCurrentWorkProcess(order.orderWorkProcess),
+        completed: this.getCompletedWorkProcesses(order.orderWorkProcess),
+        all: order.orderWorkProcess.map((wp: any) =>
+          this.transformWorkProcess(wp),
+        ),
       },
 
       pickup: {
-        jobs: order.pickUpJobs.map((job: any) => ({
-          id: job.id,
-          status: job.status,
-          driver: job.employee
-            ? {
-                id: job.employee.id,
-                name: `${job.employee.user.firstName} ${job.employee.user.lastName}`,
-                phoneNumber: job.employee.user.phoneNumber,
-              }
-            : null,
-          photos: job.pickUpPhotos ? job.pickUpPhotos.split(",") : [],
-          scheduledOutlet: job.pickUpScheduleOutlet,
-          notes: job.notes,
-          createdAt: job.createdAt,
-          updatedAt: job.updatedAt,
-        })),
+        jobs: order.pickUpJobs.map((job: any) => this.transformPickupJob(job)),
         latest:
           order.pickUpJobs.length > 0
             ? order.pickUpJobs[order.pickUpJobs.length - 1]
@@ -431,21 +443,9 @@ export class OrderValidation {
       },
 
       delivery: {
-        jobs: order.deliveryJobs.map((job: any) => ({
-          id: job.id,
-          status: job.status,
-          driver: job.employee
-            ? {
-                id: job.employee.id,
-                name: `${job.employee.user.firstName} ${job.employee.user.lastName}`,
-                phoneNumber: job.employee.user.phoneNumber,
-              }
-            : null,
-          photos: job.deliveryPhotos ? job.deliveryPhotos.split(",") : [],
-          notes: job.notes,
-          createdAt: job.createdAt,
-          updatedAt: job.updatedAt,
-        })),
+        jobs: order.deliveryJobs.map((job: any) =>
+          this.transformDeliveryJob(job),
+        ),
         latest:
           order.deliveryJobs.length > 0
             ? order.deliveryJobs[order.deliveryJobs.length - 1]
@@ -472,6 +472,7 @@ export class OrderValidation {
     return {
       id: wp.id,
       workerType: wp.workerType,
+      station: this.getStationName(wp.workerType),
       worker: wp.employee
         ? {
             id: wp.employee.id,
@@ -483,6 +484,43 @@ export class OrderValidation {
       createdAt: wp.createdAt,
       bypass: wp.bypass,
       isCompleted: !!wp.completedAt,
+    };
+  }
+
+  private transformPickupJob(job: any): any {
+    return {
+      id: job.id,
+      status: job.status,
+      driver: job.employee
+        ? {
+            id: job.employee.id,
+            name: `${job.employee.user.firstName} ${job.employee.user.lastName}`,
+            phoneNumber: job.employee.user.phoneNumber,
+          }
+        : null,
+      photos: job.pickUpPhotos ? job.pickUpPhotos.split(",") : [],
+      scheduledOutlet: job.pickUpScheduleOutlet,
+      notes: job.notes,
+      createdAt: job.createdAt,
+      updatedAt: job.updatedAt,
+    };
+  }
+
+  private transformDeliveryJob(job: any): any {
+    return {
+      id: job.id,
+      status: job.status,
+      driver: job.employee
+        ? {
+            id: job.employee.id,
+            name: `${job.employee.user.firstName} ${job.employee.user.lastName}`,
+            phoneNumber: job.employee.user.phoneNumber,
+          }
+        : null,
+      photos: job.deliveryPhotos ? job.deliveryPhotos.split(",") : [],
+      notes: job.notes,
+      createdAt: job.createdAt,
+      updatedAt: job.updatedAt,
     };
   }
 
@@ -521,7 +559,7 @@ export class OrderValidation {
       status: "COMPLETED",
       timestamp: order.createdAt,
       description: "Customer created pickup request",
-      icon: "📝",
+      icon: OrderValidation.TIMELINE_ICONS.ORDER,
     });
 
     order.pickUpJobs?.forEach((pickup: any) => {
@@ -534,7 +572,7 @@ export class OrderValidation {
         description: pickup.employee
           ? `Assigned to ${pickup.employee.user.firstName} ${pickup.employee.user.lastName}`
           : "Driver assigned",
-        icon: "🚚",
+        icon: OrderValidation.TIMELINE_ICONS.PICKUP,
         metadata: {
           driver: pickup.employee
             ? `${pickup.employee.user.firstName} ${pickup.employee.user.lastName}`
@@ -575,7 +613,7 @@ export class OrderValidation {
           status: "COMPLETED",
           timestamp: wp.completedAt,
           description: `Work completed in ${this.calculateDuration(wp.createdAt, wp.completedAt)}`,
-          icon: "✅",
+          icon: OrderValidation.TIMELINE_ICONS.COMPLETED,
           metadata: {
             duration: this.calculateDuration(wp.createdAt, wp.completedAt),
           },
@@ -593,7 +631,7 @@ export class OrderValidation {
         description: delivery.employee
           ? `${delivery.employee.user.firstName} ${delivery.employee.user.lastName} started delivery`
           : "Delivery started",
-        icon: "🚛",
+        icon: OrderValidation.TIMELINE_ICONS.DELIVERY,
         metadata: {
           driver: delivery.employee
             ? `${delivery.employee.user.firstName} ${delivery.employee.user.lastName}`
@@ -638,39 +676,18 @@ export class OrderValidation {
     };
   }
 
-  private getStationName(workerType: string): string {
-    const stations = {
-      WASHING: "Washing Station",
-      IRONING: "Ironing Station",
-      PACKING: "Packing Station",
-    };
-    return stations[workerType as keyof typeof stations] || workerType;
+  private findCurrentWorkProcess(workProcesses: any[]): any {
+    const currentProcess = workProcesses.find((wp: any) => !wp.completedAt);
+    return currentProcess ? this.transformWorkProcess(currentProcess) : null;
   }
 
-  private getStationIcon(workerType: string): string {
-    const icons = {
-      WASHING: "🧼",
-      IRONING: "👔",
-      PACKING: "📦",
-    };
-    return icons[workerType as keyof typeof icons] || "🔧";
-  }
-
-  private calculateDuration(
-    startDate: Date | string,
-    endDate: Date | string,
-  ): string {
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    const diffMs = end.getTime() - start.getTime();
-
-    const hours = Math.floor(diffMs / (1000 * 60 * 60));
-    const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-
-    if (hours > 0) {
-      return `${hours}h ${minutes}m`;
-    }
-    return `${minutes}m`;
+  private getCompletedWorkProcesses(workProcesses: any[]): any[] {
+    return workProcesses
+      .filter((wp: any) => wp.completedAt)
+      .map((wp: any) => ({
+        ...this.transformWorkProcess(wp),
+        duration: this.calculateDuration(wp.createdAt, wp.completedAt),
+      }));
   }
 
   private estimateCompletion(order: any): string | null {
@@ -705,5 +722,39 @@ export class OrderValidation {
       currentTime.getTime() + estimatedHours * 60 * 60 * 1000,
     );
     return estimatedCompletion.toISOString();
+  }
+
+  private getStationName(workerType: string): string {
+    return (
+      OrderValidation.STATION_NAMES[
+        workerType as keyof typeof OrderValidation.STATION_NAMES
+      ] || workerType
+    );
+  }
+
+  private getStationIcon(workerType: string): string {
+    const icons = {
+      WASHING: OrderValidation.TIMELINE_ICONS.WASHING,
+      IRONING: OrderValidation.TIMELINE_ICONS.IRONING,
+      PACKING: OrderValidation.TIMELINE_ICONS.PACKING,
+    };
+    return icons[workerType as keyof typeof icons] || "🔧";
+  }
+
+  private calculateDuration(
+    startDate: Date | string,
+    endDate: Date | string,
+  ): string {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const diffMs = end.getTime() - start.getTime();
+
+    const hours = Math.floor(diffMs / (1000 * 60 * 60));
+    const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+
+    if (hours > 0) {
+      return `${hours}h ${minutes}m`;
+    }
+    return `${minutes}m`;
   }
 }
