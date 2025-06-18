@@ -202,8 +202,8 @@ enum WorkerTypes {
 
 model BypassRequest {
   id                 Int          @id @default(autoincrement())
-  approvedBy         Int
-  approvedByEmployee Employee     @relation(fields: [approvedBy], references: [id])
+  approvedBy         Int?
+  approvedByEmployee Employee?    @relation(fields: [approvedBy], references: [id])
   reason             String
   adminNote          String?
   bypassStatus       BypassStatus @default(PENDING)

@@ -1673,7 +1673,7 @@ export class OrderService {
         userId,
         outletId: closestOutlet.id,
         orderNumber,
-        address_line: address.addressLine,
+        addressLine: address.addressLine,
         district: address.district,
         city: address.city,
         province: address.province,

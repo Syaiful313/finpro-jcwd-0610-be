@@ -138,4 +138,8 @@ export class NotificationService {
     authUserId: number,
     dto: GetNotificationsDTO,
   ) => {};
+
+  markAsRead = async (authUserId: number, notificationId: number) => {};
+
+  markAllAsRead = async (authUserId: number) => {};
 }

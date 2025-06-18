@@ -28,6 +28,9 @@ export class GetWorkerJobsDto extends PaginationQueryParams {
   @IsOptional()
   @IsDateString()
   readonly dateTo?: string;
+
+  @IsOptional()
+  readonly workerType?: "washing" | "ironing" | "packing" | "all";
 }
 
 export class GetWorkerHistoryDto extends PaginationQueryParams {
@@ -38,6 +41,9 @@ export class GetWorkerHistoryDto extends PaginationQueryParams {
   @IsOptional()
   @IsDateString()
   readonly dateTo?: string;
+
+  @IsOptional()
+  readonly workerType?: "washing" | "ironing" | "packing" | "all";
 }
 
 class OrderItemDto {
@@ -60,6 +66,11 @@ export class ProcessOrderDto {
   @IsString()
   readonly notes?: string;
 }
+export class FinishOrderDto {
+  @IsOptional()
+  @IsString()
+  readonly notes?: string;
+}
 
 export class RequestBypassDto {
   @IsString()
@@ -67,7 +78,7 @@ export class RequestBypassDto {
   readonly reason!: string;
 }
 
-export class CompleteOrderProcessDto {
+export class finishBypassProcessDto {
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => OrderItemDto)

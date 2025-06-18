@@ -10,8 +10,11 @@ import { injectable } from "tsyringe";
 import { ApiError } from "../../utils/api-error";
 import { PaginationService } from "../pagination/pagination.service";
 import { PrismaService } from "../prisma/prisma.service";
+import { GetBypassRequestListDto } from "./dto/get-bypass-list.dto";
 import {
-  CompleteOrderProcessDto,
+  finishBypassProcessDto,
+  FinishOrderDto,
+  GetWorkerHistoryDto,
   GetWorkerJobsDto,
   ProcessOrderDto,
   RequestBypassDto,
@@ -24,12 +27,9 @@ export class WorkerService {
     private readonly paginationService: PaginationService,
   ) {}
 
-  getStationOrders = async (
-    authUserId: number,
-    dto: GetWorkerJobsDto,
-    workerType: WorkerTypes,
-  ) => {
-    const { page, take, sortBy, sortOrder, all, search } = dto;
+  getStationOrders = async (authUserId: number, dto: GetWorkerJobsDto) => {
+    const { page, take, sortBy, sortOrder, all, workerType, dateFrom, dateTo } =
+      dto;
 
     const employee = await this.prisma.employee.findFirst({
       where: { userId: authUserId },
@@ -40,37 +40,54 @@ export class WorkerService {
       throw new ApiError("Worker not found", 404);
     }
 
-    let orderStatusFilter: OrderStatus;
-    switch (workerType) {
-      case "WASHING":
-        orderStatusFilter = OrderStatus.ARRIVED_AT_OUTLET;
-        break;
-      case "IRONING":
-        orderStatusFilter = OrderStatus.BEING_WASHED;
-        break;
-      case "PACKING":
-        orderStatusFilter = OrderStatus.BEING_IRONED;
-        break;
-      default:
-        throw new ApiError("Invalid worker type", 400);
+    let orderStatusFilter: OrderStatus | OrderStatus[];
+    if (workerType === "all") {
+      orderStatusFilter = [
+        OrderStatus.ARRIVED_AT_OUTLET,
+        OrderStatus.BEING_WASHED,
+        OrderStatus.BEING_IRONED,
+      ];
+    } else {
+      switch (workerType) {
+        case "washing":
+          orderStatusFilter = OrderStatus.ARRIVED_AT_OUTLET;
+          break;
+        case "ironing":
+          orderStatusFilter = OrderStatus.BEING_WASHED;
+          break;
+        case "packing":
+          orderStatusFilter = OrderStatus.BEING_IRONED;
+          break;
+        default:
+          orderStatusFilter = [];
+          break;
+      }
+    }
+
+    const dateFilter: any = {};
+    if (dateFrom) {
+      dateFilter.gte = new Date(`${dateFrom}T00:00:00.000Z`);
+    }
+    if (dateTo) {
+      dateFilter.lte = new Date(`${dateTo}T23:59:59.999Z`);
     }
 
     const whereClause: Prisma.OrderWhereInput = {
       outletId: employee.outletId,
-      orderStatus: orderStatusFilter,
-      ...(search && {
-        OR: [
-          { orderNumber: { contains: search, mode: "insensitive" } },
-          {
-            user: {
-              OR: [
-                { firstName: { contains: search, mode: "insensitive" } },
-                { lastName: { contains: search, mode: "insensitive" } },
-              ],
-            },
-          },
-        ],
+      orderStatus: Array.isArray(orderStatusFilter)
+        ? { in: orderStatusFilter }
+        : orderStatusFilter,
+
+      ...(Object.keys(dateFilter).length > 0 && {
+        createdAt: dateFilter,
       }),
+      orderWorkProcess: {
+        none: {
+          bypass: {
+            bypassStatus: BypassStatus.PENDING,
+          },
+        },
+      },
     };
 
     const paginationArgs: any = all
@@ -84,14 +101,26 @@ export class WorkerService {
       where: whereClause,
       include: {
         user: {
-          select: {
-            firstName: true,
-            lastName: true,
-          },
+          select: { firstName: true, lastName: true },
+        },
+        outlet: {
+          select: { outletName: true },
         },
         orderItems: {
+          include: { laundryItem: true },
+        },
+        orderWorkProcess: {
           include: {
-            laundryItem: true,
+            employee: {
+              select: {
+                user: {
+                  select: {
+                    firstName: true,
+                    lastName: true,
+                  },
+                },
+              },
+            },
           },
         },
       },
@@ -111,138 +140,231 @@ export class WorkerService {
     };
   };
 
-  processOrder = async (
+  startOrder = async (
     authUserId: number,
     orderId: string,
     dto: ProcessOrderDto,
-    workerType: WorkerTypes,
   ) => {
-    const { items, notes } = dto;
-
+    const { items } = dto;
     const employee = await this.prisma.employee.findFirst({
       where: { userId: authUserId },
-      include: { user: true },
     });
-
-    if (!employee || employee.user.role !== "WORKER") {
-      throw new ApiError("Worker not found", 404);
-    }
+    if (!employee) throw new ApiError("Worker not found", 404);
 
     const order = await this.prisma.order.findUnique({
       where: { uuid: orderId },
-      include: { orderItems: true },
+      include: { orderItems: true, orderWorkProcess: true },
     });
+    if (!order) throw new ApiError("Order not found", 404);
 
-    if (!order) {
-      throw new ApiError("Order not found", 404);
-    }
-
-    const previousStationItems = await this.prisma.orderItem.findMany({
-      where: { orderId: order.uuid },
+    const existingWork = await this.prisma.orderWorkProcess.findFirst({
+      where: { orderId: order.uuid, completedAt: null },
     });
-
-    const isQuantityMatching = items?.every((item) => {
-      const previousItem = previousStationItems.find(
-        (pi) => pi.laundryItemId === item.laundryItemId,
-      );
-      return previousItem && previousItem.quantity === item.quantity;
-    });
-
-    if (!isQuantityMatching) {
+    if (existingWork) {
       throw new ApiError(
-        "Item quantities do not match the previous station. Please request a bypass.",
+        `Order is already being processed at the ${existingWork.workerType} station.`,
         400,
       );
     }
 
+    let workType: WorkerTypes;
+    let newOrderStatus: OrderStatus;
+    switch (order.orderStatus) {
+      case OrderStatus.ARRIVED_AT_OUTLET:
+        workType = WorkerTypes.WASHING;
+        newOrderStatus = OrderStatus.BEING_WASHED;
+        break;
+
+      case OrderStatus.BEING_WASHED:
+        workType = WorkerTypes.IRONING;
+        newOrderStatus = OrderStatus.BEING_IRONED;
+        break;
+
+      case OrderStatus.BEING_IRONED:
+        workType = WorkerTypes.PACKING;
+        newOrderStatus = OrderStatus.BEING_PACKED;
+        break;
+
+      default:
+        throw new ApiError(
+          `Order with status ${order.orderStatus} cannot be started at a new station.`,
+          400,
+        );
+    }
+
+    const isQuantityMatching = items?.every((item) => {
+      const dbItem = order.orderItems.find(
+        (dbItm) => dbItm.laundryItemId === item.laundryItemId,
+      );
+      return dbItem && dbItem.quantity === item.quantity;
+    });
+
+    if (!isQuantityMatching) {
+      throw new ApiError(
+        "Item quantities do not match. Please request a bypass.",
+        400,
+      );
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const newWorkProcess = await tx.orderWorkProcess.create({
+        data: {
+          employeeId: employee.id,
+          orderId: order.uuid,
+          workerType: workType,
+          completedAt: null,
+        },
+      });
+
+      await tx.order.update({
+        where: { uuid: orderId },
+        data: { orderStatus: newOrderStatus },
+      });
+
+      return {
+        message: `Verification successful. Order #${order.orderNumber} is now being processed at the ${workType} station.`,
+        workProcess: newWorkProcess,
+      };
+    });
+  };
+
+  finishOrder = async (
+    authUserId: number,
+    orderId: string,
+    dto: FinishOrderDto,
+  ) => {
+    const { notes } = dto;
+    const employee = await this.prisma.employee.findFirst({
+      where: { userId: authUserId },
+      include: { user: true },
+    });
+    if (!employee) throw new ApiError("Worker not found", 404);
+
+    const workInProgress = await this.prisma.orderWorkProcess.findFirst({
+      where: {
+        orderId: orderId,
+        employeeId: employee.id,
+        completedAt: null,
+      },
+      include: { order: true },
+    });
+
+    if (!workInProgress) {
+      throw new ApiError(
+        "No work in progress found for this order by you. Please start the work first.",
+        404,
+      );
+    }
+
+    const { order, workerType } = workInProgress;
+
     let nextStatus: OrderStatus;
     let notificationType: NotifType;
-    let notificationMessage: string;
+    let outletAdminMessage: string;
 
     switch (workerType) {
-      case "WASHING":
+      case WorkerTypes.WASHING:
+        nextStatus = OrderStatus.BEING_WASHED;
+        notificationType = NotifType.ORDER_STARTED;
+        outletAdminMessage = `Order #${order.orderNumber} has been washed and is now ready for the Ironing station.`;
+        break;
+      case WorkerTypes.IRONING:
         nextStatus = OrderStatus.BEING_IRONED;
         notificationType = NotifType.ORDER_STARTED;
-        notificationMessage = `Order #${order.orderNumber} has been washed and is now heading to the ironing station.`;
+        outletAdminMessage = `Order #${order.orderNumber} has been ironed and is now ready for the Packing station.`;
         break;
-      case "IRONING":
-        nextStatus = OrderStatus.BEING_PACKED;
-        notificationType = NotifType.ORDER_STARTED;
-        notificationMessage = `Order #${order.orderNumber} has been ironed and is now heading to the packing station.`;
-        break;
-      case "PACKING":
+      case WorkerTypes.PACKING:
         nextStatus =
           order.paymentStatus === "PAID"
             ? OrderStatus.READY_FOR_DELIVERY
             : OrderStatus.WAITING_PAYMENT;
         notificationType = NotifType.ORDER_COMPLETED;
-        notificationMessage = `All processes for Order #${order.orderNumber} are complete.`;
+        outletAdminMessage = `All processes for Order #${order.orderNumber} are complete by ${employee.user.firstName}.`;
         break;
-      default:
-        throw new ApiError("Invalid worker type", 400);
     }
 
-    const updatedOrder = await this.prisma.$transaction(async (tx) => {
-      await tx.orderWorkProcess.create({
+    return this.prisma.$transaction(async (tx) => {
+      await tx.orderWorkProcess.update({
+        where: { id: workInProgress.id },
         data: {
-          employeeId: employee.id,
-          orderId: order.uuid,
-          workerType: workerType,
           notes: notes,
           completedAt: new Date(),
         },
       });
 
-      const updated = await tx.order.update({
-        where: { uuid: orderId },
-        data: { orderStatus: nextStatus },
-      });
+      let updatedOrder = order;
+
+      if (workerType === WorkerTypes.PACKING) {
+        updatedOrder = await tx.order.update({
+          where: { uuid: orderId },
+          data: { orderStatus: nextStatus },
+        });
+      }
 
       await tx.notification.create({
         data: {
           orderId: order.uuid,
-          message: notificationMessage,
+          message: outletAdminMessage,
           notifType: notificationType,
           orderStatus: nextStatus,
           role: Role.OUTLET_ADMIN,
         },
       });
-
+      await tx.notification.create({
+        data: {
+          orderId: order.uuid,
+          message: `You have successfully finished processing Order #${order.orderNumber} at the ${workerType} station.`,
+          notifType: notificationType,
+          orderStatus: nextStatus,
+          role: Role.WORKER,
+        },
+      });
       if (nextStatus === OrderStatus.WAITING_PAYMENT) {
         await tx.notification.create({
           data: {
             orderId: order.uuid,
-            message: `Your laundry is ready! Please complete the payment for Order #${order.orderNumber}.`,
+            message: `Your laundry is ready! Please complete the payment for Order #${order.orderNumber} to proceed with delivery.`,
             notifType: NotifType.ORDER_COMPLETED,
             orderStatus: nextStatus,
             role: Role.CUSTOMER,
           },
         });
       }
-
       if (nextStatus === OrderStatus.READY_FOR_DELIVERY) {
         await tx.notification.create({
           data: {
             orderId: order.uuid,
-            message: `Payment confirmed! Your laundry for order #${order.orderNumber} is now ready for delivery.`,
+            message: `Payment confirmed! Order #${order.orderNumber} is now ready and waiting for a driver to deliver.`,
             notifType: NotifType.ORDER_COMPLETED,
             orderStatus: nextStatus,
             role: Role.CUSTOMER,
           },
         });
+        await tx.notification.create({
+          data: {
+            orderId: order.uuid,
+            message: `New delivery request for Order #${order.orderNumber} is available to be claimed.`,
+            notifType: NotifType.NEW_DELIVERY_REQUEST,
+            orderStatus: nextStatus,
+            role: Role.DRIVER,
+          },
+        });
+        await tx.deliveryJob.create({
+          data: {
+            orderId: order.uuid,
+            employeeId: null,
+          },
+        });
       }
 
-      return updated;
+      return updatedOrder;
     });
-
-    return updatedOrder;
   };
 
   requestBypass = async (
     authUserId: number,
     orderId: string,
     body: RequestBypassDto,
-    workerType: WorkerTypes,
   ) => {
     const { reason } = body;
     const employee = await this.prisma.employee.findFirst({
@@ -265,18 +387,27 @@ export class WorkerService {
       throw new ApiError("Order not found", 404);
     }
 
-    const outletAdmin = order.outlet.employees.find(
-      (e) => e.user.role === "OUTLET_ADMIN",
-    );
-
-    if (!outletAdmin) {
-      throw new ApiError("Outlet admin not found for this outlet.", 404);
+    let workerType: WorkerTypes;
+    switch (order.orderStatus) {
+      case OrderStatus.ARRIVED_AT_OUTLET:
+        workerType = WorkerTypes.WASHING;
+        break;
+      case OrderStatus.BEING_WASHED:
+        workerType = WorkerTypes.IRONING;
+        break;
+      case OrderStatus.BEING_IRONED:
+        workerType = WorkerTypes.PACKING;
+        break;
+      default:
+        throw new ApiError(
+          `A bypass cannot be requested for an order with status ${order.orderStatus}.`,
+          400,
+        );
     }
 
     const bypassRequest = await this.prisma.$transaction(async (tx) => {
       const createdBypass = await tx.bypassRequest.create({
         data: {
-          approvedBy: outletAdmin.id,
           reason: reason,
           bypassStatus: BypassStatus.PENDING,
         },
@@ -306,11 +437,10 @@ export class WorkerService {
     return bypassRequest;
   };
 
-  completeOrderProcess = async (
+  finishBypassProcess = async (
     authUserId: number,
     bypassRequestId: number,
-    dto: CompleteOrderProcessDto,
-    workerType: WorkerTypes,
+    dto: finishBypassProcessDto,
   ) => {
     const { items, notes } = dto;
     if (!items || !Array.isArray(items)) {
@@ -332,7 +462,6 @@ export class WorkerService {
         orderWorkProcesses: {
           where: {
             employeeId: employee.id,
-            workerType: workerType,
             completedAt: null,
           },
           include: {
@@ -348,30 +477,39 @@ export class WorkerService {
     }
 
     const workProcess = bypassRequest.orderWorkProcesses[0];
-    if (!workProcess)
+    if (!workProcess) {
       throw new ApiError(
         "No pending work process found for this bypass request and worker",
         404,
       );
+    }
 
+    const workerType = workProcess.workerType;
     const order = workProcess.order;
 
     let nextStatus: OrderStatus;
+    let notificationType: NotifType;
+    let outletAdminMessage: string;
+
     switch (workerType) {
       case "WASHING":
-        nextStatus = OrderStatus.BEING_IRONED;
+        nextStatus = OrderStatus.BEING_WASHED;
+        notificationType = NotifType.BYPASS_APPROVED;
+        outletAdminMessage = `Order #${order.orderNumber} has been processed at the Washing station with an approved bypass.`;
         break;
       case "IRONING":
-        nextStatus = OrderStatus.BEING_PACKED;
+        nextStatus = OrderStatus.BEING_IRONED;
+        notificationType = NotifType.BYPASS_APPROVED;
+        outletAdminMessage = `Order #${order.orderNumber} has been processed at the Ironing station with an approved bypass.`;
         break;
       case "PACKING":
         nextStatus =
           order.paymentStatus === "PAID"
             ? OrderStatus.READY_FOR_DELIVERY
             : OrderStatus.WAITING_PAYMENT;
+        notificationType = NotifType.BYPASS_APPROVED;
+        outletAdminMessage = `All processes for Order #${order.orderNumber} are complete with an approved bypass by ${employee.user.firstName}.`;
         break;
-      default:
-        throw new ApiError("Invalid worker type", 400);
     }
 
     const updatedOrder = await this.prisma.$transaction(async (tx) => {
@@ -403,8 +541,8 @@ export class WorkerService {
       await tx.notification.create({
         data: {
           orderId: order.uuid,
-          message: `Order #${order.orderNumber} has been processed at the ${workerType} station (with an approved bypass).`,
-          notifType: NotifType.BYPASS_APPROVED,
+          message: outletAdminMessage,
+          notifType: notificationType,
           orderStatus: nextStatus,
           role: Role.OUTLET_ADMIN,
         },
@@ -414,7 +552,7 @@ export class WorkerService {
         await tx.notification.create({
           data: {
             orderId: order.uuid,
-            message: `Your laundry is ready! Please complete the payment for Order #${order.orderNumber}.`,
+            message: `Your laundry is ready! Please complete the payment for Order #${order.orderNumber} to proceed with delivery.`,
             notifType: NotifType.ORDER_COMPLETED,
             orderStatus: nextStatus,
             role: Role.CUSTOMER,
@@ -426,10 +564,19 @@ export class WorkerService {
         await tx.notification.create({
           data: {
             orderId: order.uuid,
-            message: `Payment confirmed! Your laundry for order #${order.orderNumber} is now ready for delivery.`,
+            message: `Payment confirmed! Order #${order.orderNumber} is now ready and waiting for a driver to deliver.`,
             notifType: NotifType.ORDER_COMPLETED,
             orderStatus: nextStatus,
             role: Role.CUSTOMER,
+          },
+        });
+        await tx.notification.create({
+          data: {
+            orderId: order.uuid,
+            message: `New delivery request for Order #${order.orderNumber} is available to be claimed.`,
+            notifType: NotifType.NEW_DELIVERY_REQUEST,
+            orderStatus: nextStatus,
+            role: Role.DRIVER,
           },
         });
       }
@@ -440,16 +587,16 @@ export class WorkerService {
     return updatedOrder;
   };
 
-  getJobHistory = async (authUserId: number, dto: GetWorkerJobsDto) => {
+  getJobHistory = async (authUserId: number, dto: GetWorkerHistoryDto) => {
     const {
       page,
       take,
       sortBy = "createdAt",
       sortOrder = "desc",
       all,
-      search,
       dateFrom,
       dateTo,
+      workerType,
     } = dto;
 
     const employee = await this.prisma.employee.findFirst({
@@ -469,25 +616,27 @@ export class WorkerService {
       dateFilter.lte = new Date(`${dateTo}T23:59:59.999Z`);
     }
 
+    let workerTypeFilter: any = {};
+    if (workerType && workerType !== "all") {
+      const typeMapping = {
+        washing: "WASHING",
+        ironing: "IRONING",
+        packing: "PACKING",
+      };
+      workerTypeFilter = {
+        workerType: typeMapping[workerType],
+      };
+    }
+
     const whereClause: Prisma.OrderWorkProcessWhereInput = {
       employeeId: employee.id,
+      completedAt: {
+        not: null,
+      },
+      ...workerTypeFilter,
+      // ...(workerType && { workerType: workerType.toUpperCase() as WorkerTypes })
       ...(Object.keys(dateFilter).length > 0 && {
         createdAt: dateFilter,
-      }),
-      ...(search && {
-        order: {
-          OR: [
-            { orderNumber: { contains: search, mode: "insensitive" } },
-            {
-              user: {
-                OR: [
-                  { firstName: { contains: search, mode: "insensitive" } },
-                  { lastName: { contains: search, mode: "insensitive" } },
-                ],
-              },
-            },
-          ],
-        },
       }),
     };
 
@@ -511,6 +660,7 @@ export class WorkerService {
             },
           },
         },
+        bypass: true,
       },
       orderBy: { [sortBy]: sortOrder },
       ...paginationArgs,
@@ -549,6 +699,7 @@ export class WorkerService {
           select: {
             firstName: true,
             lastName: true,
+            phoneNumber: true,
           },
         },
         orderItems: {
@@ -582,5 +733,178 @@ export class WorkerService {
     }
 
     return orderDetail;
+  };
+
+  getJobHistoryDetail = async (authUserId: number, orderId: string) => {
+    const employee = await this.prisma.employee.findFirst({
+      where: { userId: authUserId, user: { role: "WORKER" } },
+    });
+
+    if (!employee) {
+      throw new ApiError("Worker not found or you are not authorized", 404);
+    }
+    const orderDetail = await this.prisma.order.findFirst({
+      where: {
+        uuid: orderId,
+        outletId: employee.outletId,
+        orderWorkProcess: {
+          some: {
+            employeeId: employee.id,
+          },
+        },
+      },
+      include: {
+        user: {
+          select: {
+            firstName: true,
+            lastName: true,
+            phoneNumber: true,
+          },
+        },
+        orderItems: {
+          include: {
+            laundryItem: true,
+          },
+        },
+        orderWorkProcess: {
+          include: {
+            employee: {
+              include: {
+                user: {
+                  select: {
+                    firstName: true,
+                    lastName: true,
+                  },
+                },
+              },
+            },
+            bypass: true,
+          },
+          orderBy: {
+            createdAt: "asc",
+          },
+        },
+      },
+    });
+    if (!orderDetail) {
+      throw new ApiError(
+        "Order not found or you are not authorized to view this detail",
+        404,
+      );
+    }
+    return orderDetail;
+  };
+
+  getBypassRequestList = async (
+    authUserId: number,
+    dto: GetBypassRequestListDto,
+  ) => {
+    const { page, take, sortBy, sortOrder, all, status, dateFrom, dateTo } =
+      dto;
+
+    const employee = await this.prisma.employee.findFirst({
+      where: { userId: authUserId },
+      include: { user: true },
+    });
+
+    if (!employee || employee.user.role !== "WORKER") {
+      throw new ApiError("Worker not found or unauthorized", 404);
+    }
+
+    const dateFilter: any = {};
+    if (dateFrom) {
+      dateFilter.gte = new Date(`${dateFrom}T00:00:00.000Z`);
+    }
+    if (dateTo) {
+      dateFilter.lte = new Date(`${dateTo}T23:59:59.999Z`);
+    }
+
+    let prismaBypassStatus: BypassStatus | undefined;
+    if (status) {
+      prismaBypassStatus = status.toUpperCase() as BypassStatus;
+    }
+
+    const whereClause: Prisma.BypassRequestWhereInput = {
+      orderWorkProcesses: {
+        some: {
+          employee: {
+            outletId: employee.outletId,
+          },
+          ...(prismaBypassStatus === BypassStatus.APPROVED &&
+            dto.includeCompleted !== "true" && {
+              completedAt: null,
+            }),
+        },
+      },
+      ...(prismaBypassStatus && { bypassStatus: prismaBypassStatus }),
+      ...(Object.keys(dateFilter).length > 0 && {
+        createdAt: dateFilter,
+      }),
+    };
+
+    const paginationArgs: any = all
+      ? {}
+      : {
+          skip: (page - 1) * take,
+          take,
+        };
+
+    const bypassRequests = await this.prisma.bypassRequest.findMany({
+      where: whereClause,
+      include: {
+        approvedByEmployee: {
+          select: {
+            user: {
+              select: {
+                firstName: true,
+                lastName: true,
+              },
+            },
+          },
+        },
+        orderWorkProcesses: {
+          include: {
+            order: {
+              select: {
+                uuid: true,
+                orderNumber: true,
+                orderStatus: true,
+                user: {
+                  select: {
+                    firstName: true,
+                    lastName: true,
+                  },
+                },
+              },
+            },
+            employee: {
+              select: {
+                user: {
+                  select: {
+                    firstName: true,
+                    lastName: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      orderBy: { [sortBy]: sortOrder },
+      ...paginationArgs,
+    });
+
+    const totalCount = await this.prisma.bypassRequest.count({
+      where: whereClause,
+    });
+
+    return {
+      data: bypassRequests,
+      meta: this.paginationService.generateMeta({
+        page,
+        take: all ? totalCount : take,
+        count: totalCount,
+      }),
+    };
   };
 }

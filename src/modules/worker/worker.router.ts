@@ -6,7 +6,7 @@ import { verifyRole } from "../../middleware/role.middleware";
 import { env } from "../../config";
 import { validateBody } from "../../middleware/validation.middleware";
 import {
-  CompleteOrderProcessDto,
+  finishBypassProcessDto,
   ProcessOrderDto,
   RequestBypassDto,
 } from "./dto/worker.dto";
@@ -24,7 +24,7 @@ export class WorkerRouter {
 
   private initializeRoutes = (): void => {
     this.router.get(
-      "/orders/:workerType",
+      "/",
       this.jwtMiddleware.verifyToken(env().JWT_SECRET),
       verifyRole(["WORKER"]),
       this.workerController.getStationOrders,
@@ -36,24 +36,50 @@ export class WorkerRouter {
       verifyRole(["WORKER"]),
       this.workerController.getJobHistory,
     );
+    this.router.get(
+      "/history/:orderId",
+      this.jwtMiddleware.verifyToken(env().JWT_SECRET),
+      verifyRole(["WORKER"]),
+      this.workerController.getJobHistoryDetail,
+    );
 
     this.router.get(
-      "/orders/detail/:orderId",
+      "/orders/:orderId",
       this.jwtMiddleware.verifyToken(env().JWT_SECRET),
       verifyRole(["WORKER"]),
       this.workerController.getOrderDetail,
     );
 
-    this.router.post(
-      "/orders/:orderId/process/:workerType",
-      validateBody(ProcessOrderDto),
+    this.router.get(
+      "/bypass-requests",
       this.jwtMiddleware.verifyToken(env().JWT_SECRET),
       verifyRole(["WORKER"]),
-      this.workerController.processOrder,
+      this.workerController.getBypassRequestList,
+    );
+
+    this.router.get(
+      "/:workerType",
+      this.jwtMiddleware.verifyToken(env().JWT_SECRET),
+      verifyRole(["WORKER"]),
+      this.workerController.getStationOrders,
     );
 
     this.router.post(
-      "/orders/:orderId/request-bypass/:workerType",
+      "/orders/:orderId/start",
+      this.jwtMiddleware.verifyToken(env().JWT_SECRET),
+      verifyRole(["WORKER"]),
+      this.workerController.startOrder,
+    );
+
+    this.router.post(
+      "/orders/:orderId/finish",
+      this.jwtMiddleware.verifyToken(env().JWT_SECRET),
+      verifyRole(["WORKER"]),
+      this.workerController.finishOrder,
+    );
+
+    this.router.post(
+      "/orders/:orderId/request-bypass",
       validateBody(RequestBypassDto),
       this.jwtMiddleware.verifyToken(env().JWT_SECRET),
       verifyRole(["WORKER"]),
@@ -61,11 +87,11 @@ export class WorkerRouter {
     );
 
     this.router.post(
-      "/orders/complete-bypassed/:bypassRequestId/:workerType",
-      validateBody(CompleteOrderProcessDto),
+      "/orders/complete-bypassed/:bypassRequestId",
+      validateBody(finishBypassProcessDto),
       this.jwtMiddleware.verifyToken(env().JWT_SECRET),
       verifyRole(["WORKER"]),
-      this.workerController.completeOrderProcess,
+      this.workerController.finishBypassProcess,
     );
   };
 

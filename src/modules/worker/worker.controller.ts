@@ -1,14 +1,14 @@
 import { plainToInstance } from "class-transformer";
 import { NextFunction, Request, Response } from "express";
 import { injectable } from "tsyringe";
-import { WorkerService } from "./worker.service";
+import { GetBypassRequestListDto } from "./dto/get-bypass-list.dto";
 import {
-  CompleteOrderProcessDto,
+  finishBypassProcessDto,
+  FinishOrderDto,
   GetWorkerJobsDto,
-  ProcessOrderDto,
   RequestBypassDto,
 } from "./dto/worker.dto";
-import { WorkerTypes } from "@prisma/client";
+import { WorkerService } from "./worker.service";
 
 @injectable()
 export class WorkerController {
@@ -21,19 +21,25 @@ export class WorkerController {
   ) => {
     try {
       const authUserId = req.user?.id;
-      const workerType = req.params.workerType as WorkerTypes;
+      const param = req.params.workerType || "all";
+      const processedWorkerType = param.toLowerCase() === "all" ? "all" : param;
+      const combinedInput = {
+        ...req.query,
+        workerType: processedWorkerType,
+      };
+      const queryDto = plainToInstance(GetWorkerJobsDto, combinedInput);
 
-      // Validate workerType parameter
-      if (!Object.values(WorkerTypes).includes(workerType)) {
+      if (
+        !Object.values(["washing", "ironing", "packing", "all"]).includes(
+          queryDto.workerType!,
+        )
+      ) {
         res.status(400).send({ error: "Invalid worker type provided." });
-        return; // <-- PERBAIKAN
+        return;
       }
-
-      const queryDto = plainToInstance(GetWorkerJobsDto, req.query);
       const result = await this.workerService.getStationOrders(
         Number(authUserId),
         queryDto,
-        workerType,
       );
       res.status(200).send(result);
     } catch (error) {
@@ -41,23 +47,32 @@ export class WorkerController {
     }
   };
 
-  processOrder = async (req: Request, res: Response, next: NextFunction) => {
+  startOrder = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const authUserId = req.user?.id;
       const orderId = req.params.orderId;
-      const workerType = req.params.workerType as WorkerTypes;
+      const bodyDto = plainToInstance(FinishOrderDto, req.body);
 
-      if (!Object.values(WorkerTypes).includes(workerType)) {
-        res.status(400).send({ error: "Invalid worker type provided." });
-        return; // <-- PERBAIKAN
-      }
-
-      const bodyDto = plainToInstance(ProcessOrderDto, req.body);
-      const result = await this.workerService.processOrder(
+      const result = await this.workerService.startOrder(
         Number(authUserId),
         orderId,
         bodyDto,
-        workerType,
+      );
+      res.status(201).send(result);
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  finishOrder = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const authUserId = req.user?.id;
+      const orderId = req.params.orderId;
+      const bodyDto = plainToInstance(FinishOrderDto, req.body);
+      const result = await this.workerService.finishOrder(
+        Number(authUserId),
+        orderId,
+        bodyDto,
       );
       res.status(201).send(result);
     } catch (error) {
@@ -69,19 +84,11 @@ export class WorkerController {
     try {
       const authUserId = req.user?.id;
       const orderId = req.params.orderId;
-      const workerType = req.params.workerType as WorkerTypes;
-
-      if (!Object.values(WorkerTypes).includes(workerType)) {
-        res.status(400).send({ error: "Invalid worker type provided." });
-        return; // <-- PERBAIKAN
-      }
-
       const bodyDto = plainToInstance(RequestBypassDto, req.body);
       const result = await this.workerService.requestBypass(
         Number(authUserId),
         orderId,
         bodyDto,
-        workerType,
       );
       res.status(201).send(result);
     } catch (error) {
@@ -89,7 +96,7 @@ export class WorkerController {
     }
   };
 
-  completeOrderProcess = async (
+  finishBypassProcess = async (
     req: Request,
     res: Response,
     next: NextFunction,
@@ -97,19 +104,11 @@ export class WorkerController {
     try {
       const authUserId = req.user?.id;
       const bypassRequestId = Number(req.params.bypassRequestId);
-      const workerType = req.params.workerType as WorkerTypes;
-
-      if (!Object.values(WorkerTypes).includes(workerType)) {
-        res.status(400).send({ error: "Invalid worker type provided." });
-        return; // <-- PERBAIKAN
-      }
-
-      const bodyDto = plainToInstance(CompleteOrderProcessDto, req.body);
-      const result = await this.workerService.completeOrderProcess(
+      const bodyDto = plainToInstance(finishBypassProcessDto, req.body);
+      const result = await this.workerService.finishBypassProcess(
         Number(authUserId),
         bypassRequestId,
         bodyDto,
-        workerType,
       );
       res.status(200).send(result);
     } catch (error) {
@@ -138,6 +137,42 @@ export class WorkerController {
       const result = await this.workerService.getOrderDetail(
         Number(authUserId),
         orderId,
+      );
+      res.status(200).send(result);
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  getJobHistoryDetail = async (
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ) => {
+    try {
+      const authUserId = req.user?.id;
+      const { orderId } = req.params;
+      const result = await this.workerService.getOrderDetail(
+        Number(authUserId),
+        orderId,
+      );
+      res.status(200).send(result);
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  getBypassRequestList = async (
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ) => {
+    try {
+      const authUserId = req.user?.id;
+      const queryDto = plainToInstance(GetBypassRequestListDto, req.query);
+      const result = await this.workerService.getBypassRequestList(
+        Number(authUserId),
+        queryDto,
       );
       res.status(200).send(result);
     } catch (error) {
