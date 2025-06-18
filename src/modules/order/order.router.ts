@@ -48,6 +48,13 @@ export class OrderRouter {
     );
 
     this.router.get(
+      "/",
+      this.jwtMiddleware.verifyToken(env().JWT_SECRET),
+      verifyRole(["ADMIN", "OUTLET_ADMIN"]),
+      this.orderController.getOrders,
+    );
+
+    this.router.get(
       "/:orderId",
       this.jwtMiddleware.verifyToken(env().JWT_SECRET),
       verifyRole(["ADMIN", "OUTLET_ADMIN"]),
@@ -59,13 +66,6 @@ export class OrderRouter {
       this.jwtMiddleware.verifyToken(env().JWT_SECRET),
       verifyRole(["OUTLET_ADMIN"]),
       this.orderController.processOrder,
-    );
-
-    this.router.get(
-      "/",
-      this.jwtMiddleware.verifyToken(env().JWT_SECRET),
-      verifyRole(["ADMIN", "OUTLET_ADMIN"]),
-      this.orderController.getOrders,
     );
 
     this.router.get(
