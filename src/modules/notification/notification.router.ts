@@ -28,6 +28,12 @@ export class NotificationRouter {
       this.jwtMiddleware.verifyToken(env().JWT_SECRET),
       this.notificationController.getUserNotifications,
     );
+    this.router.get(
+      "/worker",
+      this.jwtMiddleware.verifyToken(env().JWT_SECRET),
+      verifyRole(["WORKER"]),
+      this.notificationController.getWorkerNotifications,
+    );
   };
   getRouter(): Router {
     return this.router;

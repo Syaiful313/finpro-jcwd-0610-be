@@ -34,7 +34,28 @@ export class NotificationController {
     try {
       const authUserId = Number(req.user!.id);
       const limit = Number(req.query.limit) || 5;
-      const result = await this.notificationService.getUserNotification(authUserId, limit);
+      const result = await this.notificationService.getUserNotification(
+        authUserId,
+        limit,
+      );
+      res.status(200).send(result);
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  getWorkerNotifications = async (
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ) => {
+    try {
+      const authUserId = req.user?.id;
+      const query = plainToInstance(GetNotificationsDTO, req.query);
+      const result = await this.notificationService.getWorkerNotifications(
+        Number(authUserId),
+        query,
+      );
       res.status(200).send(result);
     } catch (error) {
       next(error);

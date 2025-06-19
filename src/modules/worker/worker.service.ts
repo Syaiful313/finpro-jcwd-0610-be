@@ -222,7 +222,7 @@ export class WorkerService {
       });
 
       return {
-        message: `Verification successful. Order #${order.orderNumber} is now being processed at the ${workType} station.`,
+        message: `Verification successful. Order ${order.orderNumber} is now being processed at the ${workType} station.`,
         workProcess: newWorkProcess,
       };
     });
@@ -261,17 +261,20 @@ export class WorkerService {
     let nextStatus: OrderStatus;
     let notificationType: NotifType;
     let outletAdminMessage: string;
+    let nextWorkerMessage: string | null = null;
 
     switch (workerType) {
       case WorkerTypes.WASHING:
         nextStatus = OrderStatus.BEING_WASHED;
         notificationType = NotifType.ORDER_STARTED;
-        outletAdminMessage = `Order #${order.orderNumber} has been washed and is now ready for the Ironing station.`;
+        outletAdminMessage = `Order ${order.orderNumber} has been washed and is now ready for the Ironing station.`;
+        nextWorkerMessage = `New order ${order.orderNumber} is ready for ironing process.`;
         break;
       case WorkerTypes.IRONING:
         nextStatus = OrderStatus.BEING_IRONED;
         notificationType = NotifType.ORDER_STARTED;
-        outletAdminMessage = `Order #${order.orderNumber} has been ironed and is now ready for the Packing station.`;
+        outletAdminMessage = `Order ${order.orderNumber} has been ironed and is now ready for the Packing station.`;
+        nextWorkerMessage = `New order ${order.orderNumber} is ready for packing process.`;
         break;
       case WorkerTypes.PACKING:
         nextStatus =
@@ -279,7 +282,7 @@ export class WorkerService {
             ? OrderStatus.READY_FOR_DELIVERY
             : OrderStatus.WAITING_PAYMENT;
         notificationType = NotifType.ORDER_COMPLETED;
-        outletAdminMessage = `All processes for Order #${order.orderNumber} are complete by ${employee.user.firstName}.`;
+        outletAdminMessage = `All processes for Order ${order.orderNumber} are complete by ${employee.user.firstName}.`;
         break;
     }
 
@@ -310,20 +313,24 @@ export class WorkerService {
           role: Role.OUTLET_ADMIN,
         },
       });
-      await tx.notification.create({
-        data: {
-          orderId: order.uuid,
-          message: `You have successfully finished processing Order #${order.orderNumber} at the ${workerType} station.`,
-          notifType: notificationType,
-          orderStatus: nextStatus,
-          role: Role.WORKER,
-        },
-      });
+
+      if (nextWorkerMessage) {
+        await tx.notification.create({
+          data: {
+            orderId: order.uuid,
+            message: nextWorkerMessage,
+            notifType: NotifType.ORDER_STARTED,
+            orderStatus: nextStatus,
+            role: Role.WORKER,
+          },
+        });
+      }
+
       if (nextStatus === OrderStatus.WAITING_PAYMENT) {
         await tx.notification.create({
           data: {
             orderId: order.uuid,
-            message: `Your laundry is ready! Please complete the payment for Order #${order.orderNumber} to proceed with delivery.`,
+            message: `Your laundry is ready! Please complete the payment for Order ${order.orderNumber} to proceed with delivery.`,
             notifType: NotifType.ORDER_COMPLETED,
             orderStatus: nextStatus,
             role: Role.CUSTOMER,
@@ -334,7 +341,7 @@ export class WorkerService {
         await tx.notification.create({
           data: {
             orderId: order.uuid,
-            message: `Payment confirmed! Order #${order.orderNumber} is now ready and waiting for a driver to deliver.`,
+            message: `Payment confirmed! Order ${order.orderNumber} is now ready and waiting for a driver to deliver.`,
             notifType: NotifType.ORDER_COMPLETED,
             orderStatus: nextStatus,
             role: Role.CUSTOMER,
@@ -343,7 +350,7 @@ export class WorkerService {
         await tx.notification.create({
           data: {
             orderId: order.uuid,
-            message: `New delivery request for Order #${order.orderNumber} is available to be claimed.`,
+            message: `New delivery request for Order ${order.orderNumber} is available to be claimed.`,
             notifType: NotifType.NEW_DELIVERY_REQUEST,
             orderStatus: nextStatus,
             role: Role.DRIVER,
@@ -425,7 +432,7 @@ export class WorkerService {
       await tx.notification.create({
         data: {
           orderId: orderId,
-          message: `A bypass has been requested by ${employee.user.firstName} for order #${order.orderNumber} at the ${workerType} station. Reason: ${reason}`,
+          message: `A bypass has been requested by ${employee.user.firstName} for order ${order.orderNumber} at the ${workerType} station. Reason: ${reason}`,
           notifType: NotifType.BYPASS_REQUEST,
           role: Role.OUTLET_ADMIN,
         },
@@ -495,12 +502,12 @@ export class WorkerService {
       case "WASHING":
         nextStatus = OrderStatus.BEING_WASHED;
         notificationType = NotifType.BYPASS_APPROVED;
-        outletAdminMessage = `Order #${order.orderNumber} has been processed at the Washing station with an approved bypass.`;
+        outletAdminMessage = `Order ${order.orderNumber} has been processed at the Washing station with an approved bypass.`;
         break;
       case "IRONING":
         nextStatus = OrderStatus.BEING_IRONED;
         notificationType = NotifType.BYPASS_APPROVED;
-        outletAdminMessage = `Order #${order.orderNumber} has been processed at the Ironing station with an approved bypass.`;
+        outletAdminMessage = `Order ${order.orderNumber} has been processed at the Ironing station with an approved bypass.`;
         break;
       case "PACKING":
         nextStatus =
@@ -508,7 +515,7 @@ export class WorkerService {
             ? OrderStatus.READY_FOR_DELIVERY
             : OrderStatus.WAITING_PAYMENT;
         notificationType = NotifType.BYPASS_APPROVED;
-        outletAdminMessage = `All processes for Order #${order.orderNumber} are complete with an approved bypass by ${employee.user.firstName}.`;
+        outletAdminMessage = `All processes for Order ${order.orderNumber} are complete with an approved bypass by ${employee.user.firstName}.`;
         break;
     }
 
@@ -552,7 +559,7 @@ export class WorkerService {
         await tx.notification.create({
           data: {
             orderId: order.uuid,
-            message: `Your laundry is ready! Please complete the payment for Order #${order.orderNumber} to proceed with delivery.`,
+            message: `Your laundry is ready! Please complete the payment for Order ${order.orderNumber} to proceed with delivery.`,
             notifType: NotifType.ORDER_COMPLETED,
             orderStatus: nextStatus,
             role: Role.CUSTOMER,
@@ -564,7 +571,7 @@ export class WorkerService {
         await tx.notification.create({
           data: {
             orderId: order.uuid,
-            message: `Payment confirmed! Order #${order.orderNumber} is now ready and waiting for a driver to deliver.`,
+            message: `Payment confirmed! Order ${order.orderNumber} is now ready and waiting for a driver to deliver.`,
             notifType: NotifType.ORDER_COMPLETED,
             orderStatus: nextStatus,
             role: Role.CUSTOMER,
@@ -573,7 +580,7 @@ export class WorkerService {
         await tx.notification.create({
           data: {
             orderId: order.uuid,
-            message: `New delivery request for Order #${order.orderNumber} is available to be claimed.`,
+            message: `New delivery request for Order ${order.orderNumber} is available to be claimed.`,
             notifType: NotifType.NEW_DELIVERY_REQUEST,
             orderStatus: nextStatus,
             role: Role.DRIVER,
@@ -634,7 +641,7 @@ export class WorkerService {
         not: null,
       },
       ...workerTypeFilter,
-      // ...(workerType && { workerType: workerType.toUpperCase() as WorkerTypes })
+
       ...(Object.keys(dateFilter).length > 0 && {
         createdAt: dateFilter,
       }),

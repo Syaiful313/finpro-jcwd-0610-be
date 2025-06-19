@@ -23,7 +23,7 @@ export class DriverService {
     private readonly paginationService: PaginationService,
     private readonly fileService: CloudinaryService,
   ) {}
-  // udah di cek
+
   isDriverBusy = async (employeeId: number) => {
     const employee = await this.prisma.employee.findUnique({
       where: { id: employeeId },
@@ -54,7 +54,6 @@ export class DriverService {
     return activePickups + activeDeliveries > 0;
   };
 
-  // udah di cek
   hasReachedOrderLimit = async (employeeId: number) => {
     const employee = await this.prisma.employee.findUnique({
       where: { id: employeeId },
@@ -85,7 +84,6 @@ export class DriverService {
     return claimedPickups + claimedDeliveries >= 5;
   };
 
-  // udah di cek
   getAvailableRequests = async (
     authUserId: number,
     dto: GetDriverDTO,
@@ -124,7 +122,6 @@ export class DriverService {
     let totalCount = 0;
 
     if (requestType === "pickup" || requestType === "all") {
-      // Get available pickup jobs (employeeId is null and status is PENDING)
       const pickupJobsWhere: any = {
         employeeId: null,
         status: DriverTaskStatus.PENDING,
@@ -205,7 +202,6 @@ export class DriverService {
     }
 
     if (requestType === "delivery" || requestType === "all") {
-      // Get available delivery jobs (employeeId is null and status is PENDING)
       const deliveryJobsWhere: any = {
         employeeId: null,
         status: DriverTaskStatus.PENDING,
@@ -286,7 +282,6 @@ export class DriverService {
       if (requestType === "delivery") totalCount = deliveryCount;
     }
 
-    // For "all" request type, combine and sort
     if (requestType === "all") {
       availableJobs.sort((a, b) => {
         const dateA = new Date(a.createdAt).getTime();
@@ -296,7 +291,6 @@ export class DriverService {
 
       totalCount = availableJobs.length;
 
-      // Apply pagination for combined results
       if (!all) {
         const startIndex = (page - 1) * take;
         availableJobs = availableJobs.slice(startIndex, startIndex + take);
@@ -313,13 +307,12 @@ export class DriverService {
     };
   };
 
-  // udah di cek
   claimPickUpRequest = async (authUserId: number, pickUpJobId: number) => {
     if (!pickUpJobId || typeof pickUpJobId !== "number") {
       throw new ApiError("Invalid pickup job ID", 400);
     }
 
-    console.log("Received pickUpJobId:", pickUpJobId); // Debug log
+    console.log("Received pickUpJobId:", pickUpJobId);
     const employee = await this.prisma.employee.findFirst({
       where: { userId: authUserId },
       include: { user: true },
@@ -370,7 +363,6 @@ export class DriverService {
     const notificationMessage = `Good news! Driver ${employee.user.firstName} ${employee.user.lastName} has been assigned to pick up your laundry for Order #${pickUpJob.order.orderNumber}. You'll be notified when they're on the way!`;
 
     const updatedPickUpJob = await this.prisma.$transaction(async (tx) => {
-      // Update pickup job with driver info
       const updatedJob = await tx.pickUpJob.update({
         where: { id: pickUpJobId },
         data: {
@@ -392,7 +384,6 @@ export class DriverService {
         },
       });
 
-      // Create notification for customer
       await tx.notification.create({
         data: {
           orderId: pickUpJob.order.uuid,
@@ -465,7 +456,6 @@ export class DriverService {
     const notificationMessage = `Excellent! Your clean laundry is ready for delivery! Driver ${employee.user.firstName} ${employee.user.lastName} has been assigned to deliver Order #${deliveryJob.order.orderNumber}. You'll be notified when they're on the way!`;
 
     const updatedDeliveryJob = await this.prisma.$transaction(async (tx) => {
-      // Update delivery job with driver info
       const updatedJob = await tx.deliveryJob.update({
         where: { id: deliveryJobId },
         data: {
@@ -487,7 +477,6 @@ export class DriverService {
         },
       });
 
-      // Create notification for customer
       await tx.notification.create({
         data: {
           orderId: deliveryJob.order.uuid,
@@ -505,7 +494,6 @@ export class DriverService {
     return updatedDeliveryJob;
   };
 
-  // udah di cek
   startPickUp = async (authUserId: number, pickupJobId: number) => {
     const employee = await this.prisma.employee.findFirst({
       where: { userId: authUserId },
@@ -518,9 +506,7 @@ export class DriverService {
     if (await this.isDriverBusy(employee.id)) {
       throw new ApiError("Driver is currently busy with another order", 400);
     }
-    console.log("pickupJobId:", pickupJobId, typeof pickupJobId);
-    console.log("employee.id:", employee.id, typeof employee.id);
-    console.log("DriverTaskStatus.ASSIGNED:", DriverTaskStatus.ASSIGNED);
+
     const pickUpJob = await this.prisma.pickUpJob.findFirst({
       where: {
         id: pickupJobId,
@@ -546,23 +532,19 @@ export class DriverService {
     const notificationMessages = {
       CUSTOMER: `Your driver ${employee.user.firstName} ${employee.user.lastName} is on the way to pick up your laundry! Order #${pickUpJob.order.orderNumber}`,
       OUTLET_ADMIN: `Driver ${employee.user.firstName} ${employee.user.lastName} has started pickup for Order #${pickUpJob.order.orderNumber}`,
-      DRIVER: `You have started pickup task for Order #${pickUpJob.order.orderNumber}. Safe driving!`,
     };
 
     const updatedPickUpJob = await this.prisma.$transaction(async (tx) => {
-      // Update pickup job status
       const updatedJob = await tx.pickUpJob.update({
         where: { id: pickUpJob.id },
         data: { status: DriverTaskStatus.IN_PROGRESS },
       });
 
-      // Update order status
       await tx.order.update({
         where: { uuid: pickUpJob.order.uuid },
         data: { orderStatus: OrderStatus.DRIVER_ON_THE_WAY_TO_CUSTOMER },
       });
 
-      // Create notification for customer
       await tx.notification.create({
         data: {
           orderId: pickUpJob.order.uuid,
@@ -574,19 +556,6 @@ export class DriverService {
         },
       });
 
-      // Create notification for driver
-      await tx.notification.create({
-        data: {
-          orderId: pickUpJob.order.uuid,
-          message: notificationMessages.DRIVER,
-          notifType: NotifType.PICKUP_STARTED,
-          orderStatus: OrderStatus.DRIVER_ON_THE_WAY_TO_CUSTOMER,
-          role: Role.DRIVER,
-          updatedAt: new Date(),
-        },
-      });
-
-      // Create notification for outlet admin
       await tx.notification.create({
         data: {
           orderId: pickUpJob.order.uuid,
@@ -604,7 +573,6 @@ export class DriverService {
     return updatedPickUpJob;
   };
 
-  // udah di cek
   completePickUp = async (
     authUserId: number,
     pickupJobId: number,
@@ -646,11 +614,9 @@ export class DriverService {
     const notificationMessages = {
       CUSTOMER: `Your laundry has been picked up successfully! Order #${pickUpJob.order.orderNumber} is now on the way to our outlet for processing.`,
       OUTLET_ADMIN: `Pickup task completed for Order #${pickUpJob.order.orderNumber}. Driver: ${employee.user.firstName} ${employee.user.lastName} is heading to outlet.`,
-      DRIVER: `You have successfully completed pickup for Order #${pickUpJob.order.orderNumber}.`,
     };
 
     const updatedPickUpJob = await this.prisma.$transaction(async (tx) => {
-      // Update pickup job
       const updatedJob = await tx.pickUpJob.update({
         where: { id: pickUpJob.id },
         data: {
@@ -660,7 +626,6 @@ export class DriverService {
         },
       });
 
-      // Update order
       await tx.order.update({
         where: { uuid: pickUpJob.order.uuid },
         data: {
@@ -669,7 +634,6 @@ export class DriverService {
         },
       });
 
-      // Create notification for customer
       await tx.notification.create({
         data: {
           orderId: pickUpJob.order.uuid,
@@ -681,19 +645,6 @@ export class DriverService {
         },
       });
 
-      // Create notification for driver
-      await tx.notification.create({
-        data: {
-          orderId: pickUpJob.order.uuid,
-          message: notificationMessages.DRIVER,
-          notifType: NotifType.PICKUP_COMPLETED,
-          orderStatus: OrderStatus.ARRIVED_AT_OUTLET,
-          role: Role.DRIVER,
-          updatedAt: new Date(),
-        },
-      });
-
-      // Create notification for outlet admin
       await tx.notification.create({
         data: {
           orderId: pickUpJob.order.uuid,
@@ -711,7 +662,6 @@ export class DriverService {
     return updatedPickUpJob;
   };
 
-  // udah di cek
   startDelivery = async (authUserId: number, deliveryJobId: number) => {
     const employee = await this.prisma.employee.findFirst({
       where: { userId: authUserId },
@@ -751,23 +701,19 @@ export class DriverService {
     const notificationMessages = {
       CUSTOMER: `Great news! Your clean laundry is on the way! Driver ${employee.user.firstName} ${employee.user.lastName} is delivering Order #${deliveryJob.order.orderNumber}`,
       OUTLET_ADMIN: `Driver ${employee.user.firstName} ${employee.user.lastName} has started delivery for Order #${deliveryJob.order.orderNumber}`,
-      DRIVER: `You have started delivery task for Order #${deliveryJob.order.orderNumber}. Safe driving!`,
     };
 
     const updatedDeliveryJob = await this.prisma.$transaction(async (tx) => {
-      // Update delivery job status
       const updatedJob = await tx.deliveryJob.update({
         where: { id: deliveryJob.id },
         data: { status: DriverTaskStatus.IN_PROGRESS },
       });
 
-      // Update order status
       await tx.order.update({
         where: { uuid: deliveryJob.order.uuid },
         data: { orderStatus: OrderStatus.BEING_DELIVERED_TO_CUSTOMER },
       });
 
-      // Create notification for customer
       await tx.notification.create({
         data: {
           orderId: deliveryJob.order.uuid,
@@ -779,19 +725,6 @@ export class DriverService {
         },
       });
 
-      // Create notification for driver
-      await tx.notification.create({
-        data: {
-          orderId: deliveryJob.order.uuid,
-          message: notificationMessages.DRIVER,
-          notifType: NotifType.DELIVERY_STARTED,
-          orderStatus: OrderStatus.BEING_DELIVERED_TO_CUSTOMER,
-          role: Role.DRIVER,
-          updatedAt: new Date(),
-        },
-      });
-
-      // Create notification for outlet admin
       await tx.notification.create({
         data: {
           orderId: deliveryJob.order.uuid,
@@ -809,7 +742,6 @@ export class DriverService {
     return updatedDeliveryJob;
   };
 
-  // udah di cek
   completeDelivery = async (
     authUserId: number,
     deliveryJobId: number,
@@ -849,13 +781,11 @@ export class DriverService {
     const { secure_url } = await this.fileService.upload(deliveryPhotos);
 
     const notificationMessages = {
-      CUSTOMER: `Your laundry has been delivered successfully! Order #${deliveryJob.order.orderNumber} has been completed.`,
-      OUTLET_ADMIN: `Delivery task completed for Order #${deliveryJob.order.orderNumber}. Driver: ${employee.user.firstName} ${employee.user.lastName}`,
-      DRIVER: `You have successfully completed delivery for Order #${deliveryJob.order.orderNumber}`,
+      CUSTOMER: `Your laundry has been delivered successfully! Order ${deliveryJob.order.orderNumber} has been completed.`,
+      OUTLET_ADMIN: `Delivery task completed for Order ${deliveryJob.order.orderNumber}. Driver: ${employee.user.firstName} ${employee.user.lastName}`,
     };
 
     const updatedDeliveryJob = await this.prisma.$transaction(async (tx) => {
-      // Update delivery job
       const updatedJob = await tx.deliveryJob.update({
         where: { id: deliveryJob.id },
         data: {
@@ -865,7 +795,6 @@ export class DriverService {
         },
       });
 
-      // Update order
       await tx.order.update({
         where: { uuid: deliveryJob.order.uuid },
         data: {
@@ -874,7 +803,6 @@ export class DriverService {
         },
       });
 
-      // Create notification for customer
       await tx.notification.create({
         data: {
           orderId: deliveryJob.order.uuid,
@@ -886,19 +814,6 @@ export class DriverService {
         },
       });
 
-      // Create notification for driver
-      await tx.notification.create({
-        data: {
-          orderId: deliveryJob.order.uuid,
-          message: notificationMessages.DRIVER,
-          notifType: NotifType.DELIVERY_COMPLETED,
-          orderStatus: OrderStatus.DELIVERED_TO_CUSTOMER,
-          role: Role.DRIVER,
-          updatedAt: new Date(),
-        },
-      });
-
-      // Create notification for outlet admin
       await tx.notification.create({
         data: {
           orderId: deliveryJob.order.uuid,
@@ -1078,11 +993,11 @@ export class DriverService {
     if (!employee || employee.user.role !== "DRIVER") {
       throw new ApiError("Driver not found", 404);
     }
-    // cari uuidnya dari job pickup/delivery
+
     const order = await this.prisma.order.findUnique({
       where: { uuid: orderId },
       include: {
-        user: true, // include customer
+        user: true,
         pickUpJobs: {
           include: {
             order: { include: { user: true } },

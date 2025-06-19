@@ -1,11 +1,9 @@
-import { injectable } from "tsyringe";
-import { PrismaService } from "../prisma/prisma.service";
-import { MailService } from "../mail/mail.service";
-import { PaginationService } from "../pagination/pagination.service";
-import { CloudinaryService } from "../cloudinary/cloudinary.service";
-import { GetNotificationsDTO } from "./dto/get-notif.dto";
 import { Prisma } from "@prisma/client";
+import { injectable } from "tsyringe";
 import { ApiError } from "../../utils/api-error";
+import { PaginationService } from "../pagination/pagination.service";
+import { PrismaService } from "../prisma/prisma.service";
+import { GetNotificationsDTO } from "./dto/get-notif.dto";
 
 @injectable()
 export class NotificationService {
@@ -18,7 +16,7 @@ export class NotificationService {
     authUserId: number,
     dto: GetNotificationsDTO,
   ) => {
-    const { page, take, sortBy, sortOrder, all, search } = dto;
+    const { page, take, sortBy, sortOrder, all } = dto;
 
     const employee = await this.prisma.employee.findFirst({
       where: { userId: authUserId },
@@ -135,15 +133,6 @@ export class NotificationService {
     };
   };
 
-  getWorkerNotifications = async (
-    authUserId: number,
-    dto: GetNotificationsDTO,
-  ) => {};
-
-  markAsRead = async (authUserId: number, notificationId: number) => {};
-
-  markAllAsRead = async (authUserId: number) => {};
-
   getUserNotification = async (authUserId: number, limit: number) => {
     const user = await this.prisma.user.findFirst({
       where: { id: authUserId },
@@ -176,4 +165,45 @@ export class NotificationService {
     });
     return notifications;
   };
+
+  getWorkerNotifications = async (
+    authUserId: number,
+    dto: GetNotificationsDTO,
+  ) => {
+    const employee = await this.prisma.employee.findFirst({
+      where: { userId: authUserId },
+    });
+
+    if (!employee) {
+      throw new ApiError("Employee not found for this user", 400);
+    }
+
+    const notifications = await this.prisma.notification.findMany({
+      where: {
+        role: "WORKER",
+        Order: {
+          outletId: employee.outletId,
+        },
+      },
+      take: 5,
+      include: {
+        Order: {
+          select: {
+            uuid: true,
+            orderNumber: true,
+            orderStatus: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+
+    return { data: notifications };
+  };
+
+  markAsRead = async (authUserId: number, notificationId: number) => {};
+
+  markAllAsRead = async (authUserId: number) => {};
 }
