@@ -1,4 +1,4 @@
-import { PrismaClient, Role, OrderStatus, PaymentStatus } from '@prisma/client';
+import { PrismaClient, Role, OrderStatus, PaymentStatus, WorkerTypes, DriverTaskStatus } from '@prisma/client';
 import * as argon2 from 'argon2';
 
 const prisma = new PrismaClient();
@@ -147,6 +147,15 @@ async function seedSalesReportData() {
         isVerified: true
       },
       {
+        firstName: 'Driver2',
+        lastName: 'Outlet2',
+        email: 'driver2.outlet2@laundry.com',
+        password: hashedPassword,
+        role: Role.DRIVER,
+        phoneNumber: '081234567905',
+        isVerified: true
+      },
+      {
         firstName: 'Driver1',
         lastName: 'Outlet3',
         email: 'driver1.outlet3@laundry.com',
@@ -165,6 +174,15 @@ async function seedSalesReportData() {
         password: hashedPassword,
         role: Role.WORKER,
         phoneNumber: '081234567910',
+        isVerified: true
+      },
+      {
+        firstName: 'Washer2',
+        lastName: 'Outlet1',
+        email: 'washer2.outlet1@laundry.com',
+        password: hashedPassword,
+        role: Role.WORKER,
+        phoneNumber: '081234567913',
         isVerified: true
       },
       {
@@ -203,6 +221,15 @@ async function seedSalesReportData() {
         password: hashedPassword,
         role: Role.WORKER,
         phoneNumber: '081234567921',
+        isVerified: true
+      },
+      {
+        firstName: 'Ironer2',
+        lastName: 'Outlet2',
+        email: 'ironer2.outlet2@laundry.com',
+        password: hashedPassword,
+        role: Role.WORKER,
+        phoneNumber: '081234567923',
         isVerified: true
       },
       {
@@ -328,6 +355,7 @@ async function seedSalesReportData() {
       'WORKER'
     ];
 
+    const employees = [];
     for (const user of users) {
       if (employeeTypes.includes(user.role)) {
         let outletId: number;
@@ -350,7 +378,7 @@ async function seedSalesReportData() {
         }
 
         // Check if employee record already exists
-        const existingEmployee = await prisma.employee.findFirst({
+        let existingEmployee = await prisma.employee.findFirst({
           where: {
             userId: user.id,
             deletedAt: null
@@ -365,10 +393,9 @@ async function seedSalesReportData() {
             userId: user.id,
             outletId: outletId,
             npwp: npwp, // Required field
-            // Add other fields if they exist and are required in your schema
           };
 
-          const employee = await prisma.employee.create({
+          existingEmployee = await prisma.employee.create({
             data: employeeData
           });
 
@@ -376,6 +403,12 @@ async function seedSalesReportData() {
         } else {
           console.log(`⚠️  Employee record already exists for: ${user.email}`);
         }
+
+        employees.push({
+          ...existingEmployee,
+          user,
+          outletId
+        });
       }
     }
 
@@ -490,44 +523,234 @@ async function seedSalesReportData() {
       }
     }
 
+    // ✅ CREATE PICKUP JOBS FOR DRIVERS
+    console.log('🚚 Creating pickup jobs for drivers...');
+    const drivers = employees.filter(emp => emp.user.role === Role.DRIVER);
+    
+    for (const order of orders) {
+      // Get drivers from the same outlet as the order
+      const outletDrivers = drivers.filter(d => d.outletId === order.outletId);
+      if (outletDrivers.length === 0) continue;
+
+      const driver = outletDrivers[Math.floor(Math.random() * outletDrivers.length)];
+      const pickupDate = new Date(order.createdAt.getTime() + Math.random() * 2 * 60 * 60 * 1000); // 0-2 hours after order
+      
+      // Check if pickup job already exists
+      const existingPickup = await prisma.pickUpJob.findFirst({
+        where: { orderId: order.uuid }
+      });
+
+      if (!existingPickup) {
+        await prisma.pickUpJob.create({
+          data: {
+            employeeId: driver.id,
+            orderId: order.uuid,
+            status: Math.random() > 0.1 ? DriverTaskStatus.COMPLETED : DriverTaskStatus.IN_PROGRESS,
+            pickUpPhotos: `pickup_photo_${order.orderNumber}.jpg`,
+            notes: `Pickup completed for order ${order.orderNumber}`,
+            createdAt: pickupDate,
+            updatedAt: pickupDate
+          }
+        });
+      }
+    }
+
+    // ✅ CREATE DELIVERY JOBS FOR DRIVERS
+    console.log('🚛 Creating delivery jobs for drivers...');
+    
+    for (const order of orders) {
+      // Get drivers from the same outlet as the order
+      const outletDrivers = drivers.filter(d => d.outletId === order.outletId);
+      if (outletDrivers.length === 0) continue;
+
+      const driver = outletDrivers[Math.floor(Math.random() * outletDrivers.length)];
+      const deliveryDate = new Date(order.paidAt!.getTime() + Math.random() * 2 * 60 * 60 * 1000); // 0-2 hours after payment
+      
+      // Check if delivery job already exists
+      const existingDelivery = await prisma.deliveryJob.findFirst({
+        where: { orderId: order.uuid }
+      });
+
+      if (!existingDelivery) {
+        await prisma.deliveryJob.create({
+          data: {
+            employeeId: driver.id,
+            orderId: order.uuid,
+            status: Math.random() > 0.05 ? DriverTaskStatus.COMPLETED : DriverTaskStatus.IN_PROGRESS,
+            deliveryPhotos: `delivery_photo_${order.orderNumber}.jpg`,
+            notes: `Delivery completed for order ${order.orderNumber}`,
+            createdAt: deliveryDate,
+            updatedAt: deliveryDate
+          }
+        });
+      }
+    }
+
+    // ✅ CREATE ORDER WORK PROCESSES FOR WORKERS
+    console.log('🧺 Creating order work processes for workers...');
+    const workers = employees.filter(emp => emp.user.role === Role.WORKER);
+    
+    for (const order of orders) {
+      // Get workers from the same outlet as the order
+      const outletWorkers = workers.filter(w => w.outletId === order.outletId);
+      if (outletWorkers.length === 0) continue;
+
+      const workerTypes = [WorkerTypes.WASHING, WorkerTypes.IRONING, WorkerTypes.PACKING];
+      
+      for (const workerType of workerTypes) {
+        // Find workers of specific type (based on email pattern)
+        let typeWorkers = outletWorkers;
+        if (workerType === WorkerTypes.WASHING) {
+          typeWorkers = outletWorkers.filter(w => w.user.email.includes('washer'));
+        } else if (workerType === WorkerTypes.IRONING) {
+          typeWorkers = outletWorkers.filter(w => w.user.email.includes('ironer'));
+        } else if (workerType === WorkerTypes.PACKING) {
+          typeWorkers = outletWorkers.filter(w => w.user.email.includes('packer'));
+        }
+
+        // If no specific type workers, use any worker
+        if (typeWorkers.length === 0) {
+          typeWorkers = outletWorkers;
+        }
+
+        const worker = typeWorkers[Math.floor(Math.random() * typeWorkers.length)];
+        
+        // Calculate work completion time based on stage
+        let workDate: Date;
+        if (workerType === WorkerTypes.WASHING) {
+          workDate = new Date(order.createdAt.getTime() + 4 * 60 * 60 * 1000); // 4 hours after order
+        } else if (workerType === WorkerTypes.IRONING) {
+          workDate = new Date(order.createdAt.getTime() + 8 * 60 * 60 * 1000); // 8 hours after order
+        } else {
+          workDate = new Date(order.createdAt.getTime() + 12 * 60 * 60 * 1000); // 12 hours after order
+        }
+
+        // Check if work process already exists
+        const existingWorkProcess = await prisma.orderWorkProcess.findFirst({
+          where: { 
+            orderId: order.uuid,
+            workerType: workerType
+          }
+        });
+
+        if (!existingWorkProcess) {
+          await prisma.orderWorkProcess.create({
+            data: {
+              employeeId: worker.id,
+              orderId: order.uuid,
+              workerType: workerType,
+              notes: `${workerType.toLowerCase()} process completed for order ${order.orderNumber}`,
+              completedAt: Math.random() > 0.05 ? workDate : null, // 95% completion rate
+              createdAt: workDate,
+              updatedAt: workDate
+            }
+          });
+        }
+      }
+    }
+
     console.log('✅ Sales report data seeding completed!');
     console.log(`📊 Created:`);
     console.log(`   - ${outlets.length} outlets`);
     console.log(`   - ${users.length} users`);
+    console.log(`   - ${employees.length} employee records`);
     console.log(`   - ${laundryItems.length} laundry items`);
     console.log(`   - ${orders.length} orders across multiple periods`);
 
-    // ✅ DETAILED OUTLET SUMMARY
-    console.log('\n📈 OUTLET SALES SUMMARY:');
+    // ✅ GET PERFORMANCE DATA COUNT
+    const pickupJobsCount = await prisma.pickUpJob.count();
+    const deliveryJobsCount = await prisma.deliveryJob.count();
+    const workProcessesCount = await prisma.orderWorkProcess.count();
+
+    console.log(`   - ${pickupJobsCount} pickup jobs`);
+    console.log(`   - ${deliveryJobsCount} delivery jobs`);
+    console.log(`   - ${workProcessesCount} work processes`);
+
+    // ✅ DETAILED OUTLET SUMMARY WITH EMPLOYEE PERFORMANCE
+    console.log('\n📈 OUTLET EMPLOYEE PERFORMANCE SUMMARY:');
     for (const outlet of outlets) {
       const outletOrders = orders.filter(o => o.outletId === outlet.id);
       const outletIncome = outletOrders.reduce((sum, o) => sum + (o.totalPrice || 0), 0);
       const outletAdmin = users.find(u => u.role === Role.OUTLET_ADMIN && u.outletId === outlet.id);
       
-      // Get employee count per outlet
-      const employees = await prisma.employee.findMany({
-        where: { 
-          outletId: outlet.id,
-          deletedAt: null
-        },
-        include: {
-          user: {
-            select: {
-              email: true,
-              role: true
-            }
-          }
-        }
-      });
+      // Get employee performance per outlet
+      const outletEmployees = employees.filter(e => e.outletId === outlet.id);
+      const outletDrivers = outletEmployees.filter(e => e.user.role === 'DRIVER');
+      const outletWorkers = outletEmployees.filter(e => e.user.role === 'WORKER');
       
       console.log(`   🏪 ${outlet.outletName}:`);
       console.log(`      - Admin: ${outletAdmin?.email || 'No admin assigned'}`);
-      console.log(`      - Employees: ${employees.length}`);
-      console.log(`        - Drivers: ${employees.filter(e => e.user.role === 'DRIVER').length}`);
-      console.log(`        - Workers: ${employees.filter(e => e.user.role === 'WORKER').length}`);
       console.log(`      - Orders: ${outletOrders.length}`);
       console.log(`      - Total Income: Rp ${outletIncome.toLocaleString('id-ID')}`);
-      console.log(`      - Avg Order Value: Rp ${outletOrders.length > 0 ? Math.round(outletIncome / outletOrders.length).toLocaleString('id-ID') : 0}`);
+      
+      // Driver Performance
+      console.log(`      📊 Driver Performance:`);
+      for (const driver of outletDrivers) {
+        const pickupJobs = await prisma.pickUpJob.count({
+          where: { employeeId: driver.id }
+        });
+        const deliveryJobs = await prisma.deliveryJob.count({
+          where: { employeeId: driver.id }
+        });
+        const completedPickups = await prisma.pickUpJob.count({
+          where: { 
+            employeeId: driver.id,
+            status: DriverTaskStatus.COMPLETED
+          }
+        });
+        const completedDeliveries = await prisma.deliveryJob.count({
+          where: { 
+            employeeId: driver.id,
+            status: DriverTaskStatus.COMPLETED
+          }
+        });
+        
+        const totalJobs = pickupJobs + deliveryJobs;
+        const completedJobs = completedPickups + completedDeliveries;
+        const completionRate = totalJobs > 0 ? (completedJobs / totalJobs * 100).toFixed(1) : '0';
+        
+        console.log(`         - ${driver.user.firstName} ${driver.user.lastName}: ${totalJobs} jobs (${completionRate}% completion)`);
+        console.log(`           Pickup: ${pickupJobs} (${completedPickups} completed)`);
+        console.log(`           Delivery: ${deliveryJobs} (${completedDeliveries} completed)`);
+      }
+      
+      // Worker Performance
+      console.log(`      🧺 Worker Performance:`);
+      for (const worker of outletWorkers) {
+        const workProcesses = await prisma.orderWorkProcess.count({
+          where: { employeeId: worker.id }
+        });
+        const completedProcesses = await prisma.orderWorkProcess.count({
+          where: { 
+            employeeId: worker.id,
+            completedAt: { not: null }
+          }
+        });
+        
+        const washingJobs = await prisma.orderWorkProcess.count({
+          where: { 
+            employeeId: worker.id,
+            workerType: WorkerTypes.WASHING
+          }
+        });
+        const ironingJobs = await prisma.orderWorkProcess.count({
+          where: { 
+            employeeId: worker.id,
+            workerType: WorkerTypes.IRONING
+          }
+        });
+        const packingJobs = await prisma.orderWorkProcess.count({
+          where: { 
+            employeeId: worker.id,
+            workerType: WorkerTypes.PACKING
+          }
+        });
+        
+        const completionRate = workProcesses > 0 ? (completedProcesses / workProcesses * 100).toFixed(1) : '0';
+        
+        console.log(`         - ${worker.user.firstName} ${worker.user.lastName}: ${workProcesses} jobs (${completionRate}% completion)`);
+        console.log(`           Washing: ${washingJobs}, Ironing: ${ironingJobs}, Packing: ${packingJobs}`);
+      }
     }
 
     // ✅ ROLE SUMMARY
@@ -540,13 +763,6 @@ async function seedSalesReportData() {
     Object.entries(roleStats).forEach(([role, count]) => {
       console.log(`   - ${role}: ${count} users`);
     });
-
-    // ✅ EMPLOYEE SUMMARY
-    const totalEmployees = await prisma.employee.count({
-      where: { deletedAt: null }
-    });
-    console.log(`\n👔 EMPLOYEE SUMMARY:`);
-    console.log(`   - Total Employee Records: ${totalEmployees}`);
 
     // ✅ PERIOD SUMMARY
     console.log('\n📅 PERIOD SUMMARY:');
