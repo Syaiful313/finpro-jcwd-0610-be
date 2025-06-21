@@ -56,16 +56,17 @@ enum Provider {
 }
 
 model Notification {
-  id          Int          @id @default(autoincrement())
-  message     String
-  orderStatus OrderStatus?
-  notifType   NotifType
-  role        Role?
-  isRead      Boolean      @default(false)
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime?    @updatedAt
-  orderId     String?
-  Order       Order?       @relation(fields: [orderId], references: [uuid])
+  id            Int          @id @default(autoincrement())
+  message       String
+  orderStatus   OrderStatus?
+  notifType     NotifType
+  role          Role?
+  // isRead        Boolean      @default(false)
+  readByUserIds Int[]        @default([])
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime?    @updatedAt
+  orderId       String?
+  Order         Order?       @relation(fields: [orderId], references: [uuid])
 
   @@map("notifications")
 }

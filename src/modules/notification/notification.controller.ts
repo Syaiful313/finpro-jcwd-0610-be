@@ -54,7 +54,34 @@ export class NotificationController {
       const query = plainToInstance(GetNotificationsDTO, req.query);
       const result = await this.notificationService.getWorkerNotifications(
         Number(authUserId),
-        query,
+      );
+      res.status(200).send(result);
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  markAsRead = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const authUserId = req.user?.id;
+      // const notificationId = Number(req.params.id);
+      const { notificationId } = req.params;
+      const numericNotificationId = parseInt(notificationId, 10);
+      const result = await this.notificationService.markAsRead(
+        Number(authUserId),
+        numericNotificationId,
+      );
+      res.status(200).send(result);
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  markAllAsRead = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const authUserId = req.user?.id;
+      const result = await this.notificationService.markAllAsRead(
+        Number(authUserId),
       );
       res.status(200).send(result);
     } catch (error) {

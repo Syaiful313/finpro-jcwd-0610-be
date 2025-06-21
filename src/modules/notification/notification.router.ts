@@ -34,6 +34,16 @@ export class NotificationRouter {
       verifyRole(["WORKER"]),
       this.notificationController.getWorkerNotifications,
     );
+    this.router.post(
+      "/read/:notificationId",
+      this.jwtMiddleware.verifyToken(env().JWT_SECRET),
+      this.notificationController.markAsRead,
+    );
+    this.router.post(
+      "/read-all",
+      this.jwtMiddleware.verifyToken(env().JWT_SECRET),
+      this.notificationController.markAllAsRead,
+    );
   };
   getRouter(): Router {
     return this.router;

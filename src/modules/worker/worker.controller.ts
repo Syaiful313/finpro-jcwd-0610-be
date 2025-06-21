@@ -152,7 +152,7 @@ export class WorkerController {
     try {
       const authUserId = req.user?.id;
       const { orderId } = req.params;
-      const result = await this.workerService.getOrderDetail(
+      const result = await this.workerService.getJobHistoryDetail(
         Number(authUserId),
         orderId,
       );

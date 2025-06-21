@@ -19,15 +19,18 @@ import {
   ProcessOrderDto,
   RequestBypassDto,
 } from "./dto/worker.dto";
+import { AttendanceService } from "../attendance/attendance.service";
 
 @injectable()
 export class WorkerService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly paginationService: PaginationService,
+    private readonly attendanceService: AttendanceService,
   ) {}
 
   getStationOrders = async (authUserId: number, dto: GetWorkerJobsDto) => {
+    await this.attendanceService.ensureEmployeeIsClockedIn(authUserId);
     const { page, take, sortBy, sortOrder, all, workerType, dateFrom, dateTo } =
       dto;
 
@@ -145,6 +148,8 @@ export class WorkerService {
     orderId: string,
     dto: ProcessOrderDto,
   ) => {
+    await this.attendanceService.ensureEmployeeIsClockedIn(authUserId);
+
     const { items } = dto;
     const employee = await this.prisma.employee.findFirst({
       where: { userId: authUserId },
@@ -233,6 +238,8 @@ export class WorkerService {
     orderId: string,
     dto: FinishOrderDto,
   ) => {
+    await this.attendanceService.ensureEmployeeIsClockedIn(authUserId);
+
     const { notes } = dto;
     const employee = await this.prisma.employee.findFirst({
       where: { userId: authUserId },
@@ -341,15 +348,6 @@ export class WorkerService {
         await tx.notification.create({
           data: {
             orderId: order.uuid,
-            message: `Payment confirmed! Order ${order.orderNumber} is now ready and waiting for a driver to deliver.`,
-            notifType: NotifType.ORDER_COMPLETED,
-            orderStatus: nextStatus,
-            role: Role.CUSTOMER,
-          },
-        });
-        await tx.notification.create({
-          data: {
-            orderId: order.uuid,
             message: `New delivery request for Order ${order.orderNumber} is available to be claimed.`,
             notifType: NotifType.NEW_DELIVERY_REQUEST,
             orderStatus: nextStatus,
@@ -373,6 +371,8 @@ export class WorkerService {
     orderId: string,
     body: RequestBypassDto,
   ) => {
+    await this.attendanceService.ensureEmployeeIsClockedIn(authUserId);
+
     const { reason } = body;
     const employee = await this.prisma.employee.findFirst({
       where: { userId: authUserId },
@@ -449,6 +449,8 @@ export class WorkerService {
     bypassRequestId: number,
     dto: finishBypassProcessDto,
   ) => {
+    await this.attendanceService.ensureEmployeeIsClockedIn(authUserId);
+
     const { items, notes } = dto;
     if (!items || !Array.isArray(items)) {
       throw new ApiError(
@@ -688,6 +690,8 @@ export class WorkerService {
   };
 
   getOrderDetail = async (authUserId: number, orderId: string) => {
+    await this.attendanceService.ensureEmployeeIsClockedIn(authUserId);
+
     const employee = await this.prisma.employee.findFirst({
       where: { userId: authUserId, user: { role: "WORKER" } },
     });
@@ -806,6 +810,8 @@ export class WorkerService {
     authUserId: number,
     dto: GetBypassRequestListDto,
   ) => {
+    await this.attendanceService.ensureEmployeeIsClockedIn(authUserId);
+
     const { page, take, sortBy, sortOrder, all, status, dateFrom, dateTo } =
       dto;
 
