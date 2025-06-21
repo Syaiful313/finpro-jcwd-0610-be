@@ -1,12 +1,9 @@
+import { Prisma, Role } from "@prisma/client";
 import { injectable } from "tsyringe";
 import { ApiError } from "../../utils/api-error";
 import { PaginationService } from "../pagination/pagination.service";
 import { PrismaService } from "../prisma/prisma.service";
-import {
-  GetAttendanceHistoryDTO,
-  GetAttendanceReportDTO,
-} from "./dto/attendance.dto";
-import { Prisma } from "@prisma/client";
+import { GetAttendanceHistoryDTO } from "./dto/attendance.dto";
 
 @injectable()
 export class AttendanceService {
@@ -15,135 +12,47 @@ export class AttendanceService {
     private readonly paginationService: PaginationService,
   ) {}
 
-  // clockIn = async (authUserId: number) => {
-  //   const result = await this.prisma.$transaction(async (tx) => {
-  //     const employee = await tx.employee.findFirst({
-  //       where: { userId: authUserId },
-  //     });
+  public async ensureEmployeeIsClockedIn(
+    authUserId: number,
+    tx?: Prisma.TransactionClient,
+  ) {
+    const prismaClient = tx || this.prisma;
+    const employee = await prismaClient.employee.findFirst({
+      where: { userId: authUserId },
+      include: { user: true },
+    });
 
-  //     if (!employee) {
-  //       throw new ApiError("Employee not found", 404);
-  //     }
+    if (!employee) {
+      throw new ApiError("Employee not found", 404);
+    }
 
-  //     const uncloseAttendance = await tx.attendance.findFirst({
-  //       where: {
-  //         employeeId: employee.id,
-  //         outletId: employee.outletId,
-  //         clockOutAt: null,
-  //       },
-  //       orderBy: {
-  //         clockInAt: "desc",
-  //       },
-  //     });
+    const currentAttendance = await prismaClient.attendance.findFirst({
+      where: {
+        employeeId: employee.id,
+        clockOutAt: null,
+      },
+    });
 
-  //     if (uncloseAttendance) {
-  //       const today = new Date();
+    if (!currentAttendance) {
+      throw new ApiError(
+        "Action failed. You must clock in before performing this action.",
+        403,
+      );
+    }
+    return employee;
+  }
 
-  //       if (!uncloseAttendance.clockInAt) {
-  //         throw new ApiError(
-  //           "Invalid attendance record: missing clock-in time",
-  //           500,
-  //         );
-  //       }
+  public clockIn = async (authUserId: number) => {
+    return this.prisma.$transaction(async (tx) => {
+      const employee = await this._getEmployeeByAuthId(authUserId, tx);
 
-  //       const clockInDate = new Date(uncloseAttendance.clockInAt);
-
-  //       const isFromPreviousDay =
-  //         today.getDate() !== clockInDate.getDate() ||
-  //         today.getMonth() !== clockInDate.getMonth() ||
-  //         today.getFullYear() !== clockInDate.getFullYear();
-
-  //       if (isFromPreviousDay) {
-  //         const endOfPreviousDay = new Date(clockInDate);
-  //         endOfPreviousDay.setHours(23, 59, 59, 999);
-
-  //         await tx.attendance.update({
-  //           where: { id: uncloseAttendance.id },
-  //           data: {
-  //             clockOutAt: endOfPreviousDay,
-  //           },
-  //         });
-  //       } else {
-  //         throw new ApiError("Employee is already clocked in", 400);
-  //       }
-  //     }
-
-  //     const attendance = await tx.attendance.create({
-  //       data: {
-  //         employeeId: employee.id,
-  //         clockInAt: new Date(),
-  //         clockOutAt: null,
-  //         outletId: employee.outletId,
-  //       },
-  //     });
-
-  //     return attendance;
-  //   });
-  //   return result;
-  // };
-
-  // clockOut = async (authUserId: number) => {
-  //   const result = await this.prisma.$transaction(async (tx) => {
-  //     const employee = await tx.employee.findFirst({
-  //       where: {
-  //         userId: authUserId,
-  //       },
-  //     });
-
-  //     if (!employee) {
-  //       throw new ApiError("Employee not found", 404);
-  //     }
-
-  //     const attendance = await tx.attendance.findFirst({
-  //       where: {
-  //         employeeId: employee.id,
-  //         clockOutAt: null,
-  //       },
-  //     });
-
-  //     if (!attendance) {
-  //       throw new ApiError("No active clock-in found", 404);
-  //     }
-
-  //     const updated = await tx.attendance.update({
-  //       where: {
-  //         id: attendance.id,
-  //         clockOutAt: null,
-  //       },
-  //       data: {
-  //         clockOutAt: new Date(),
-  //       },
-  //     });
-
-  //     return updated;
-  //   });
-
-  //   return result;
-  // };
-
-  clockIn = async (authUserId: number) => {
-    const result = await this.prisma.$transaction(async (tx) => {
-      const employee = await tx.employee.findFirst({
-        where: { userId: authUserId },
+      const unclosedAttendance = await tx.attendance.findFirst({
+        where: { employeeId: employee.id, clockOutAt: null },
+        orderBy: { clockInAt: "desc" },
       });
 
-      if (!employee) {
-        throw new ApiError("Employee not found", 404);
-      }
-
-      const uncloseAttendance = await tx.attendance.findFirst({
-        where: {
-          employeeId: employee.id,
-          outletId: employee.outletId,
-          clockOutAt: null,
-        },
-        orderBy: {
-          clockInAt: "desc",
-        },
-      });
-
-      if (uncloseAttendance) {
-        if (!uncloseAttendance.clockInAt) {
+      if (unclosedAttendance) {
+        if (!unclosedAttendance.clockInAt) {
           throw new ApiError(
             "Invalid attendance record: missing clock-in time",
             500,
@@ -151,31 +60,26 @@ export class AttendanceService {
         }
 
         const today = new Date();
-        const clockInDate = new Date(uncloseAttendance.clockInAt);
+        const clockInDate = new Date(unclosedAttendance.clockInAt);
 
-        // Check if it's the same day
         const isSameDay =
           today.getDate() === clockInDate.getDate() &&
           today.getMonth() === clockInDate.getMonth() &&
           today.getFullYear() === clockInDate.getFullYear();
 
         if (isSameDay) {
-          throw new ApiError("Employee is already clocked in", 400);
+          throw new ApiError("Employee is already clocked in for today", 400);
         } else {
-          // Auto close previous attendance at end of that day
           const endOfPreviousDay = new Date(clockInDate);
           endOfPreviousDay.setHours(23, 59, 59, 999);
-
           await tx.attendance.update({
-            where: { id: uncloseAttendance.id },
-            data: {
-              clockOutAt: endOfPreviousDay,
-            },
+            where: { id: unclosedAttendance.id },
+            data: { clockOutAt: endOfPreviousDay },
           });
         }
       }
 
-      const attendance = await tx.attendance.create({
+      return tx.attendance.create({
         data: {
           employeeId: employee.id,
           clockInAt: new Date(),
@@ -183,249 +87,107 @@ export class AttendanceService {
           outletId: employee.outletId,
         },
       });
-
-      return attendance;
     });
-    return result;
   };
 
-  clockOut = async (authUserId: number) => {
-    const result = await this.prisma.$transaction(async (tx) => {
-      const employee = await tx.employee.findFirst({
-        where: {
-          userId: authUserId,
-        },
-      });
-
-      if (!employee) {
-        throw new ApiError("Employee not found", 404);
-      }
+  public clockOut = async (authUserId: number) => {
+    return this.prisma.$transaction(async (tx) => {
+      const employee = await this._getEmployeeByAuthId(authUserId, tx);
 
       const attendance = await tx.attendance.findFirst({
-        where: {
-          employeeId: employee.id,
-          clockOutAt: null,
-        },
+        where: { employeeId: employee.id, clockOutAt: null },
       });
 
       if (!attendance) {
-        throw new ApiError("No active clock-in found", 404);
+        throw new ApiError("No active clock-in found to clock out", 404);
       }
 
-      const updated = await tx.attendance.update({
-        where: {
-          id: attendance.id,
-          clockOutAt: null,
-        },
-        data: {
-          clockOutAt: new Date(),
-        },
+      return tx.attendance.update({
+        where: { id: attendance.id },
+        data: { clockOutAt: new Date() },
       });
-
-      return updated;
     });
-
-    return result;
   };
 
-  getAttendanceHistory = async (
+  public getAttendanceHistory = async (
     authUserId: number,
     startDate?: Date,
     endDate?: Date,
   ) => {
-    const employee = await this.prisma.employee.findFirst({
-      where: { userId: authUserId },
-    });
+    const employee = await this._getEmployeeByAuthId(authUserId);
 
-    if (!employee) {
-      throw new ApiError("Employee not found", 404);
-    }
-
-    const whereClause: any = {
+    const whereClause: Prisma.AttendanceWhereInput = {
       employeeId: employee.id,
+      ...(startDate &&
+        endDate && {
+          clockInAt: {
+            gte: startDate,
+            lte: endDate,
+          },
+        }),
     };
-
-    if (startDate && endDate) {
-      whereClause.clockInAt = {
-        gte: startDate,
-        lte: endDate,
-      };
-    }
 
     return this.prisma.attendance.findMany({
       where: whereClause,
-      orderBy: {
-        clockInAt: "desc",
-      },
+      orderBy: { clockInAt: "desc" },
       include: {
-        employee: {
-          select: {
-            id: true,
-            userId: true,
-          },
-        },
-        outlet: {
-          select: {
-            id: true,
-            outletName: true,
-          },
-        },
+        employee: { select: { id: true, userId: true } },
+        outlet: { select: { id: true, outletName: true } },
       },
     });
   };
 
-  getCurrentAttendance = async (authUserId: number) => {
-    const employee = await this.prisma.employee.findFirst({
-      where: { userId: authUserId },
-    });
-
-    if (!employee) {
-      throw new ApiError("Employee not found", 404);
-    }
-
+  public getCurrentAttendance = async (authUserId: number) => {
+    const employee = await this._getEmployeeByAuthId(authUserId);
     return this.prisma.attendance.findFirst({
       where: {
         employeeId: employee.id,
         clockOutAt: null,
       },
       include: {
-        employee: {
-          select: {
-            id: true,
-            userId: true,
-          },
-        },
-        outlet: {
-          select: {
-            id: true,
-            outletName: true,
-          },
-        },
+        employee: { select: { id: true, userId: true } },
+        outlet: { select: { id: true, outletName: true } },
       },
     });
   };
 
-  getAttendances = async (authUserId: number, dto: GetAttendanceHistoryDTO) => {
+  public getAttendances = async (
+    authUserId: number,
+    dto: GetAttendanceHistoryDTO,
+  ) => {
     const {
-      page,
-      take,
+      page = 1,
+      take = 10,
       sortBy = "clockInAt",
       sortOrder = "desc",
       all,
-      search,
-      startDate,
-      endDate,
-      employeeId,
+      ...filters
     } = dto;
 
-    const user = await this.prisma.user.findFirst({
+    const user = await this.prisma.user.findUnique({
       where: { id: authUserId },
-      include: {
-        employees: {
-          include: { outlet: true },
-        },
-      },
+      include: { employees: true },
     });
 
     if (!user || user.employees.length === 0) {
-      throw new ApiError("Employee not found", 404);
+      throw new ApiError("Employee not found for the current user", 404);
     }
 
-    const currentEmployee = user.employees[0];
-    const whereClause: Prisma.AttendanceWhereInput = {};
+    const validatedFilters = {
+      ...filters,
+      startDate: filters.startDate ? new Date(filters.startDate) : undefined,
+      endDate: filters.endDate ? new Date(filters.endDate) : undefined,
+    };
 
-    if (user.role === "ADMIN") {
-      if (employeeId) {
-        whereClause.employeeId = employeeId;
-      }
+    const whereClause = this._createAttendanceWhereClause(
+      user,
+      user.employees[0],
+      validatedFilters,
+    );
 
-      if (search) {
-        whereClause.employee = {
-          user: {
-            AND: [
-              { role: { in: ["DRIVER", "WORKER", "OUTLET_ADMIN", "ADMIN"] } },
-              {
-                OR: [
-                  { firstName: { contains: search, mode: "insensitive" } },
-                  { lastName: { contains: search, mode: "insensitive" } },
-                  { email: { contains: search, mode: "insensitive" } },
-                ],
-              },
-            ],
-          },
-        };
-      } else {
-        whereClause.employee = {
-          user: {
-            role: { in: ["DRIVER", "WORKER", "OUTLET_ADMIN", "ADMIN"] },
-          },
-        };
-      }
-    } else if (user.role === "OUTLET_ADMIN") {
-      whereClause.outletId = currentEmployee.outletId;
-
-      if (employeeId) {
-        whereClause.employeeId = employeeId;
-      }
-
-      if (search) {
-        whereClause.employee = {
-          user: {
-            AND: [
-              { role: { in: ["DRIVER", "WORKER", "OUTLET_ADMIN", "ADMIN"] } },
-              {
-                OR: [
-                  { firstName: { contains: search, mode: "insensitive" } },
-                  { lastName: { contains: search, mode: "insensitive" } },
-                  { email: { contains: search, mode: "insensitive" } },
-                ],
-              },
-            ],
-          },
-        };
-      } else {
-        whereClause.employee = {
-          user: {
-            role: { in: ["DRIVER", "WORKER", "OUTLET_ADMIN", "ADMIN"] },
-          },
-        };
-      }
-    } else if (user.role === "DRIVER" || user.role === "WORKER") {
-      whereClause.employeeId = currentEmployee.id;
-    } else {
-      throw new ApiError(
-        "Access denied. Invalid role for attendance access",
-        403,
-      );
-    }
-
-    // Date filtering
-    if (startDate || endDate) {
-      whereClause.clockInAt = {};
-
-      if (startDate) {
-        whereClause.clockInAt.gte = new Date(startDate);
-      }
-
-      if (endDate) {
-        const endOfSelectedDay = new Date(endDate);
-        endOfSelectedDay.setHours(23, 59, 59, 999);
-        whereClause.clockInAt.lte = endOfSelectedDay;
-      }
-    }
-
-    let paginationArgs: Prisma.AttendanceFindManyArgs = {};
-    if (!all) {
-      paginationArgs = {
-        skip: (page - 1) * take,
-        take,
-      };
-    }
-
-    const attendanceData = await this.prisma.attendance.findMany({
+    const findManyArgs: Prisma.AttendanceFindManyArgs = {
       where: whereClause,
       orderBy: { [sortBy]: sortOrder },
-      ...paginationArgs,
       include: {
         employee: {
           select: {
@@ -441,16 +203,19 @@ export class AttendanceService {
             },
           },
         },
-        outlet: {
-          select: {
-            id: true,
-            outletName: true,
-          },
-        },
+        outlet: { select: { id: true, outletName: true } },
       },
-    });
+    };
 
-    const count = await this.prisma.attendance.count({ where: whereClause });
+    if (!all) {
+      findManyArgs.skip = (page - 1) * take;
+      findManyArgs.take = take;
+    }
+
+    const [attendanceData, count] = await this.prisma.$transaction([
+      this.prisma.attendance.findMany(findManyArgs),
+      this.prisma.attendance.count({ where: whereClause }),
+    ]);
 
     return {
       data: attendanceData,
@@ -461,4 +226,161 @@ export class AttendanceService {
       }),
     };
   };
+
+  public getTodayAttendance = async (authUserId: number) => {
+    const user = await this.prisma.user.findUnique({
+      where: { id: authUserId },
+      select: { employees: { select: { id: true } } },
+    });
+
+    if (!user || user.employees.length === 0) {
+      throw new ApiError("Employee not found for the current user", 404);
+    }
+    const employeeId = user.employees[0].id;
+
+    const now = new Date();
+    const startOfDay = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+      0,
+      0,
+      0,
+      0,
+    );
+    const endOfDay = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+      23,
+      59,
+      59,
+      999,
+    );
+
+    // 1. Cari data absensi untuk HARI INI
+    const todayAttendance = await this.prisma.attendance.findFirst({
+      where: {
+        employeeId: employeeId,
+        clockInAt: { gte: startOfDay, lte: endOfDay },
+      },
+      include: {
+        outlet: { select: { id: true, outletName: true } },
+      },
+    });
+
+    // 2. Jika tidak ada absensi hari ini, cek apakah ada sesi "menggantung" dari hari sebelumnya
+    let unclosedSessionFromPreviousDay = null;
+    if (!todayAttendance) {
+      unclosedSessionFromPreviousDay = await this.prisma.attendance.findFirst({
+        where: {
+          employeeId: employeeId,
+          clockOutAt: null, // Sesi yang masih aktif
+          clockInAt: { lt: startOfDay },
+        },
+        select: { id: true, clockInAt: true },
+      });
+    }
+
+    const hasClockedIn = !!todayAttendance;
+    const hasClockedOut = !!todayAttendance?.clockOutAt;
+
+    return {
+      data: todayAttendance,
+      meta: {
+        hasClockedIn,
+        hasClockedOut,
+        unclosedSession: unclosedSessionFromPreviousDay,
+      },
+    };
+  };
+  private async _getEmployeeByAuthId(
+    authUserId: number,
+    tx?: Prisma.TransactionClient,
+  ) {
+    const prismaClient = tx || this.prisma;
+    const employee = await prismaClient.employee.findFirst({
+      where: { userId: authUserId },
+    });
+    if (!employee) {
+      throw new ApiError("Employee not found", 404);
+    }
+    return employee;
+  }
+
+  private _createAttendanceWhereClause(
+    user: { role: Role },
+    employee: { id: number; outletId: number | null },
+    filters: {
+      search?: string;
+      startDate?: Date;
+      endDate?: Date;
+      employeeId?: number;
+    },
+  ): Prisma.AttendanceWhereInput {
+    const { search, startDate, endDate, employeeId } = filters;
+    const whereClause: Prisma.AttendanceWhereInput = {};
+
+    if (user.role === Role.ADMIN) {
+      if (employeeId) whereClause.employeeId = employeeId;
+    } else if (user.role === Role.OUTLET_ADMIN) {
+      if (employee.outletId === null) {
+        throw new ApiError("Current user is not assigned to any outlet.", 403);
+      }
+      whereClause.outletId = employee.outletId;
+      if (employeeId) whereClause.employeeId = employeeId;
+    } else if (user.role === Role.DRIVER || user.role === Role.WORKER) {
+      whereClause.employeeId = employee.id;
+    } else {
+      throw new ApiError(
+        "Access denied. Invalid role for attendance access",
+        403,
+      );
+    }
+
+    if (
+      search &&
+      (user.role === Role.ADMIN || user.role === Role.OUTLET_ADMIN)
+    ) {
+      whereClause.employee = {
+        user: {
+          OR: [
+            { firstName: { contains: search, mode: "insensitive" } },
+            { lastName: { contains: search, mode: "insensitive" } },
+            { email: { contains: search, mode: "insensitive" } },
+          ],
+        },
+      };
+    }
+
+    if (startDate || endDate) {
+      whereClause.clockInAt = {};
+      if (startDate) whereClause.clockInAt.gte = startDate;
+      if (endDate) {
+        const endOfSelectedDay = new Date(endDate);
+        endOfSelectedDay.setHours(23, 59, 59, 999);
+        whereClause.clockInAt.lte = endOfSelectedDay;
+      }
+    }
+
+    if (user.role === Role.ADMIN || user.role === Role.OUTLET_ADMIN) {
+      const permittedRoles: Role[] = [
+        Role.DRIVER,
+        Role.WORKER,
+        Role.OUTLET_ADMIN,
+        Role.ADMIN,
+      ];
+      const roleFilter = { user: { role: { in: permittedRoles } } };
+
+      if (whereClause.employee) {
+        whereClause.employee = {
+          AND: [whereClause.employee, roleFilter],
+        };
+      } else {
+        whereClause.employee = roleFilter;
+      }
+    }
+
+    return whereClause;
+  }
 }

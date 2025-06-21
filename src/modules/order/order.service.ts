@@ -1160,7 +1160,7 @@ export class OrderService {
             orderStatus: true,
             notifType: true,
             role: true,
-            isRead: true,
+            // isRead: true,
             createdAt: true,
           },
           orderBy: { createdAt: "desc" },
@@ -1751,7 +1751,7 @@ export class OrderService {
         metadata: {
           notifType: notif.notifType,
           role: notif.role,
-          isRead: notif.isRead,
+          // isRead: notif.isRead,
         },
       });
     });
@@ -1987,7 +1987,7 @@ export class OrderService {
       address.latitude,
       address.longitude,
       closestOutlet.latitude,
-      closestOutlet.longitude
+      closestOutlet.longitude,
     );
 
     const orderNumber = `BF-${Date.now()}`;
@@ -2005,7 +2005,7 @@ export class OrderService {
         latitude: address.latitude,
         longitude: address.longitude,
         scheduledPickupTime: new Date(scheduledPickupTime),
-        totalDeliveryFee: distanceKm * closestOutlet.deliveryBaseFee
+        totalDeliveryFee: distanceKm * closestOutlet.deliveryBaseFee,
       },
     });
 
@@ -2098,10 +2098,10 @@ export class OrderService {
 
     const updatedOrder = await this.prisma.order.update({
       where: { uuid },
-      data: { 
-        orderStatus: "COMPLETED"
-      }
-    })
+      data: {
+        orderStatus: "COMPLETED",
+      },
+    });
 
     return updatedOrder;
   };
