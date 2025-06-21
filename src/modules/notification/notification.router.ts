@@ -28,8 +28,19 @@ export class NotificationRouter {
       this.jwtMiddleware.verifyToken(env().JWT_SECRET),
       this.notificationController.getUserNotifications,
     );
-    this.router.patch(
-      "/read",
+    this.router.get(
+      "/worker",
+      this.jwtMiddleware.verifyToken(env().JWT_SECRET),
+      verifyRole(["WORKER"]),
+      this.notificationController.getWorkerNotifications,
+    );
+    this.router.post(
+      "/read/:notificationId",
+      this.jwtMiddleware.verifyToken(env().JWT_SECRET),
+      this.notificationController.markAsRead,
+    );
+    this.router.post(
+      "/read-all",
       this.jwtMiddleware.verifyToken(env().JWT_SECRET),
       this.notificationController.markAllAsRead,
     );

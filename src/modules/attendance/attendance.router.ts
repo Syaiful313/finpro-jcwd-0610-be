@@ -24,6 +24,13 @@ export class AttendanceRouter {
       this.attendanceController.getAttendances,
     );
 
+    this.router.get(
+      "/today",
+      this.jwtMiddleware.verifyToken(env().JWT_SECRET),
+      verifyRole(["DRIVER", "WORKER"]),
+      this.attendanceController.getTodayAttendance,
+    );
+
     this.router.post(
       "/clock-in",
       this.jwtMiddleware.verifyToken(env().JWT_SECRET),

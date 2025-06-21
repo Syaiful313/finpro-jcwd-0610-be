@@ -19,15 +19,18 @@ import {
   ProcessOrderDto,
   RequestBypassDto,
 } from "./dto/worker.dto";
+import { AttendanceService } from "../attendance/attendance.service";
 
 @injectable()
 export class WorkerService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly paginationService: PaginationService,
+    private readonly attendanceService: AttendanceService,
   ) {}
 
   getStationOrders = async (authUserId: number, dto: GetWorkerJobsDto) => {
+    await this.attendanceService.ensureEmployeeIsClockedIn(authUserId);
     const { page, take, sortBy, sortOrder, all, workerType, dateFrom, dateTo } =
       dto;
 
@@ -145,6 +148,8 @@ export class WorkerService {
     orderId: string,
     dto: ProcessOrderDto,
   ) => {
+    await this.attendanceService.ensureEmployeeIsClockedIn(authUserId);
+
     const { items } = dto;
     const employee = await this.prisma.employee.findFirst({
       where: { userId: authUserId },
@@ -222,7 +227,7 @@ export class WorkerService {
       });
 
       return {
-        message: `Verification successful. Order #${order.orderNumber} is now being processed at the ${workType} station.`,
+        message: `Verification successful. Order ${order.orderNumber} is now being processed at the ${workType} station.`,
         workProcess: newWorkProcess,
       };
     });
@@ -233,6 +238,8 @@ export class WorkerService {
     orderId: string,
     dto: FinishOrderDto,
   ) => {
+    await this.attendanceService.ensureEmployeeIsClockedIn(authUserId);
+
     const { notes } = dto;
     const employee = await this.prisma.employee.findFirst({
       where: { userId: authUserId },
@@ -261,17 +268,20 @@ export class WorkerService {
     let nextStatus: OrderStatus;
     let notificationType: NotifType;
     let outletAdminMessage: string;
+    let nextWorkerMessage: string | null = null;
 
     switch (workerType) {
       case WorkerTypes.WASHING:
         nextStatus = OrderStatus.BEING_WASHED;
         notificationType = NotifType.ORDER_STARTED;
-        outletAdminMessage = `Order #${order.orderNumber} has been washed and is now ready for the Ironing station.`;
+        outletAdminMessage = `Order ${order.orderNumber} has been washed and is now ready for the Ironing station.`;
+        nextWorkerMessage = `New order ${order.orderNumber} is ready for ironing process.`;
         break;
       case WorkerTypes.IRONING:
         nextStatus = OrderStatus.BEING_IRONED;
         notificationType = NotifType.ORDER_STARTED;
-        outletAdminMessage = `Order #${order.orderNumber} has been ironed and is now ready for the Packing station.`;
+        outletAdminMessage = `Order ${order.orderNumber} has been ironed and is now ready for the Packing station.`;
+        nextWorkerMessage = `New order ${order.orderNumber} is ready for packing process.`;
         break;
       case WorkerTypes.PACKING:
         nextStatus =
@@ -279,7 +289,7 @@ export class WorkerService {
             ? OrderStatus.READY_FOR_DELIVERY
             : OrderStatus.WAITING_PAYMENT;
         notificationType = NotifType.ORDER_COMPLETED;
-        outletAdminMessage = `All processes for Order #${order.orderNumber} are complete by ${employee.user.firstName}.`;
+        outletAdminMessage = `All processes for Order ${order.orderNumber} are complete by ${employee.user.firstName}.`;
         break;
     }
 
@@ -310,20 +320,24 @@ export class WorkerService {
           role: Role.OUTLET_ADMIN,
         },
       });
-      await tx.notification.create({
-        data: {
-          orderId: order.uuid,
-          message: `You have successfully finished processing Order #${order.orderNumber} at the ${workerType} station.`,
-          notifType: notificationType,
-          orderStatus: nextStatus,
-          role: Role.WORKER,
-        },
-      });
+
+      if (nextWorkerMessage) {
+        await tx.notification.create({
+          data: {
+            orderId: order.uuid,
+            message: nextWorkerMessage,
+            notifType: NotifType.ORDER_STARTED,
+            orderStatus: nextStatus,
+            role: Role.WORKER,
+          },
+        });
+      }
+
       if (nextStatus === OrderStatus.WAITING_PAYMENT) {
         await tx.notification.create({
           data: {
             orderId: order.uuid,
-            message: `Your laundry is ready! Please complete the payment for Order #${order.orderNumber} to proceed with delivery.`,
+            message: `Your laundry is ready! Please complete the payment for Order ${order.orderNumber} to proceed with delivery.`,
             notifType: NotifType.ORDER_COMPLETED,
             orderStatus: nextStatus,
             role: Role.CUSTOMER,
@@ -334,16 +348,7 @@ export class WorkerService {
         await tx.notification.create({
           data: {
             orderId: order.uuid,
-            message: `Payment confirmed! Order #${order.orderNumber} is now ready and waiting for a driver to deliver.`,
-            notifType: NotifType.ORDER_COMPLETED,
-            orderStatus: nextStatus,
-            role: Role.CUSTOMER,
-          },
-        });
-        await tx.notification.create({
-          data: {
-            orderId: order.uuid,
-            message: `New delivery request for Order #${order.orderNumber} is available to be claimed.`,
+            message: `New delivery request for Order ${order.orderNumber} is available to be claimed.`,
             notifType: NotifType.NEW_DELIVERY_REQUEST,
             orderStatus: nextStatus,
             role: Role.DRIVER,
@@ -366,6 +371,8 @@ export class WorkerService {
     orderId: string,
     body: RequestBypassDto,
   ) => {
+    await this.attendanceService.ensureEmployeeIsClockedIn(authUserId);
+
     const { reason } = body;
     const employee = await this.prisma.employee.findFirst({
       where: { userId: authUserId },
@@ -425,7 +432,7 @@ export class WorkerService {
       await tx.notification.create({
         data: {
           orderId: orderId,
-          message: `A bypass has been requested by ${employee.user.firstName} for order #${order.orderNumber} at the ${workerType} station. Reason: ${reason}`,
+          message: `A bypass has been requested by ${employee.user.firstName} for order ${order.orderNumber} at the ${workerType} station. Reason: ${reason}`,
           notifType: NotifType.BYPASS_REQUEST,
           role: Role.OUTLET_ADMIN,
         },
@@ -442,6 +449,8 @@ export class WorkerService {
     bypassRequestId: number,
     dto: finishBypassProcessDto,
   ) => {
+    await this.attendanceService.ensureEmployeeIsClockedIn(authUserId);
+
     const { items, notes } = dto;
     if (!items || !Array.isArray(items)) {
       throw new ApiError(
@@ -495,12 +504,12 @@ export class WorkerService {
       case "WASHING":
         nextStatus = OrderStatus.BEING_WASHED;
         notificationType = NotifType.BYPASS_APPROVED;
-        outletAdminMessage = `Order #${order.orderNumber} has been processed at the Washing station with an approved bypass.`;
+        outletAdminMessage = `Order ${order.orderNumber} has been processed at the Washing station with an approved bypass.`;
         break;
       case "IRONING":
         nextStatus = OrderStatus.BEING_IRONED;
         notificationType = NotifType.BYPASS_APPROVED;
-        outletAdminMessage = `Order #${order.orderNumber} has been processed at the Ironing station with an approved bypass.`;
+        outletAdminMessage = `Order ${order.orderNumber} has been processed at the Ironing station with an approved bypass.`;
         break;
       case "PACKING":
         nextStatus =
@@ -508,7 +517,7 @@ export class WorkerService {
             ? OrderStatus.READY_FOR_DELIVERY
             : OrderStatus.WAITING_PAYMENT;
         notificationType = NotifType.BYPASS_APPROVED;
-        outletAdminMessage = `All processes for Order #${order.orderNumber} are complete with an approved bypass by ${employee.user.firstName}.`;
+        outletAdminMessage = `All processes for Order ${order.orderNumber} are complete with an approved bypass by ${employee.user.firstName}.`;
         break;
     }
 
@@ -552,7 +561,7 @@ export class WorkerService {
         await tx.notification.create({
           data: {
             orderId: order.uuid,
-            message: `Your laundry is ready! Please complete the payment for Order #${order.orderNumber} to proceed with delivery.`,
+            message: `Your laundry is ready! Please complete the payment for Order ${order.orderNumber} to proceed with delivery.`,
             notifType: NotifType.ORDER_COMPLETED,
             orderStatus: nextStatus,
             role: Role.CUSTOMER,
@@ -564,7 +573,7 @@ export class WorkerService {
         await tx.notification.create({
           data: {
             orderId: order.uuid,
-            message: `Payment confirmed! Order #${order.orderNumber} is now ready and waiting for a driver to deliver.`,
+            message: `Payment confirmed! Order ${order.orderNumber} is now ready and waiting for a driver to deliver.`,
             notifType: NotifType.ORDER_COMPLETED,
             orderStatus: nextStatus,
             role: Role.CUSTOMER,
@@ -573,7 +582,7 @@ export class WorkerService {
         await tx.notification.create({
           data: {
             orderId: order.uuid,
-            message: `New delivery request for Order #${order.orderNumber} is available to be claimed.`,
+            message: `New delivery request for Order ${order.orderNumber} is available to be claimed.`,
             notifType: NotifType.NEW_DELIVERY_REQUEST,
             orderStatus: nextStatus,
             role: Role.DRIVER,
@@ -634,7 +643,7 @@ export class WorkerService {
         not: null,
       },
       ...workerTypeFilter,
-      // ...(workerType && { workerType: workerType.toUpperCase() as WorkerTypes })
+
       ...(Object.keys(dateFilter).length > 0 && {
         createdAt: dateFilter,
       }),
@@ -681,6 +690,8 @@ export class WorkerService {
   };
 
   getOrderDetail = async (authUserId: number, orderId: string) => {
+    await this.attendanceService.ensureEmployeeIsClockedIn(authUserId);
+
     const employee = await this.prisma.employee.findFirst({
       where: { userId: authUserId, user: { role: "WORKER" } },
     });
@@ -799,6 +810,8 @@ export class WorkerService {
     authUserId: number,
     dto: GetBypassRequestListDto,
   ) => {
+    await this.attendanceService.ensureEmployeeIsClockedIn(authUserId);
+
     const { page, take, sortBy, sortOrder, all, status, dateFrom, dateTo } =
       dto;
 
