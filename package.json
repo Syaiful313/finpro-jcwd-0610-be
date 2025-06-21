@@ -13,6 +13,9 @@
     "test:unit": "jest --forceExit --detectOpenHandles",
     "seed:sales": "ts-node seed-sales-data.ts"
   },
+  "prisma": {
+    "seed": "ts-node seed-sales-data.ts"
+  },
   "keywords": [],
   "author": "Daniel Reinhard",
   "license": "ISC",

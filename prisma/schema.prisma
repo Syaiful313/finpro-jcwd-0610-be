@@ -64,7 +64,6 @@ model Notification {
   orderStatus   OrderStatus?
   notifType     NotifType
   role          Role?
-  // isRead        Boolean      @default(false)
   readByUserIds Int[]        @default([])
   createdAt     DateTime     @default(now())
   updatedAt     DateTime?    @updatedAt

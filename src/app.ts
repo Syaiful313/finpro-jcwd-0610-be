@@ -89,11 +89,6 @@ export default class App {
     this.app.use(errorMiddleware);
   }
 
-  // private initializeCronJobs(): void {
-  //   const cronService = container.resolve(CronService);
-  //   cronService.initializeJobs();
-  // }
-
   public start(): void {
     this.app.listen(env().PORT, '0.0.0.0',() => {
       console.log(`  ➜  [🔥] Local:   http://localhost:${env().PORT}`);
