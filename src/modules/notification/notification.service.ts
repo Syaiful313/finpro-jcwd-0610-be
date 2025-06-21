@@ -142,9 +142,28 @@ export class NotificationService {
 
   markAsRead = async (authUserId: number, notificationId: number) => {};
 
-  markAllAsRead = async (authUserId: number) => {};
+  markAllAsRead = async (authUserId: number) => {
+    const result = await this.prisma.notification.updateMany({
+      where: {
+        NOT: {
+          readByUserIds: {
+            has: authUserId,
+          },
+        },
+      },
+      data: {
+        readByUserIds: {
+          push: authUserId,
+        },
+      },
+    });
 
-  getUserNotification = async (authUserId: number, limit: number) => {
+    return {
+      message: "All unread notifications have been marked as read",
+    };
+  };
+
+  getUserNotification = async (authUserId: number, limit: number, page: number) => {
     const user = await this.prisma.user.findFirst({
       where: { id: authUserId },
     });
@@ -153,15 +172,7 @@ export class NotificationService {
     }
     const notifications = await this.prisma.notification.findMany({
       where: {
-        notifType: {
-          in: [
-            "PICKUP_STARTED",
-            "PICKUP_COMPLETED",
-            "DELIVERY_STARTED",
-            "DELIVERY_COMPLETED",
-            "ORDER_COMPLETED",
-          ],
-        },
+        role: "CUSTOMER",
         Order: {
           user: {
             id: authUserId,
@@ -172,7 +183,7 @@ export class NotificationService {
         createdAt: "desc",
       },
       take: limit,
-      include: {},
+      skip: (page - 1) * limit,
     });
     return notifications;
   };

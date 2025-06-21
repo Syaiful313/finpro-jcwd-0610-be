@@ -28,6 +28,11 @@ export class NotificationRouter {
       this.jwtMiddleware.verifyToken(env().JWT_SECRET),
       this.notificationController.getUserNotifications,
     );
+    this.router.patch(
+      "/read",
+      this.jwtMiddleware.verifyToken(env().JWT_SECRET),
+      this.notificationController.markAllAsRead,
+    );
   };
   getRouter(): Router {
     return this.router;

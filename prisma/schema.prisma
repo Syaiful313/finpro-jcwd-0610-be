@@ -31,6 +31,9 @@ model User {
   provider    Provider  @default(CREDENTIAL)
   outletId    Int?
   outlet      Outlet?   @relation(fields: [outletId], references: [id])
+  resetPasswordToken String?
+  resetPasswordTokenUsed Boolean?
+  verificationSentAt DateTime?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   deletedAt   DateTime?
@@ -61,7 +64,7 @@ model Notification {
   orderStatus OrderStatus?
   notifType   NotifType
   role        Role?
-  isRead      Boolean      @default(false)
+  readByUserIds Int[]      @default([]) 
   createdAt   DateTime     @default(now())
   updatedAt   DateTime?    @updatedAt
   orderId     String?
@@ -79,6 +82,7 @@ enum NotifType {
   DELIVERY_COMPLETED
   ORDER_STARTED
   ORDER_COMPLETED
+  ORDER_FINISHED
   BYPASS_REQUEST
   BYPASS_APPROVED
   BYPASS_REJECTED
