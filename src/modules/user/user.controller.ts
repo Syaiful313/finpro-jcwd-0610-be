@@ -47,6 +47,18 @@ export class UserController {
       if (!file) {
         throw new ApiError("No file uploaded", 400);
       }
+
+      const allowedMimeTypes = ["image/jpeg", "image/png", "image/gif", "image/jpg"];
+      const maxSize = 1 * 1024 * 1024; 
+
+      if (!allowedMimeTypes.includes(file.mimetype)) {
+        throw new ApiError("Invalid file type. Only JPG, PNG, and GIF are allowed", 400);
+      }
+
+      if (file.size > maxSize) {
+        throw new ApiError("File is too large. Max size is 1MB", 400);
+      }
+      
       const uploadResult = await this.cloudinaryService.upload(file);
       const uploadPath = uploadResult.secure_url;
       const result = await this.userService.uploadProfilePic(

@@ -1,11 +1,10 @@
-import { injectable } from "tsyringe";
-import { PrismaService } from "../prisma/prisma.service";
-import { MailService } from "../mail/mail.service";
-import { PaginationService } from "../pagination/pagination.service";
-import { CloudinaryService } from "../cloudinary/cloudinary.service";
-import { GetNotificationsDTO } from "./dto/get-notif.dto";
 import { Prisma } from "@prisma/client";
+import { injectable } from "tsyringe";
 import { ApiError } from "../../utils/api-error";
+import { PaginationService } from "../pagination/pagination.service";
+import { PrismaService } from "../prisma/prisma.service";
+import { GetNotificationsDTO } from "./dto/get-notif.dto";
+import { count } from "console";
 
 @injectable()
 export class NotificationService {
@@ -18,133 +17,39 @@ export class NotificationService {
     authUserId: number,
     dto: GetNotificationsDTO,
   ) => {
-    const { page, take, sortBy, sortOrder, all, search } = dto;
-
     const employee = await this.prisma.employee.findFirst({
       where: { userId: authUserId },
-      include: { user: true },
     });
 
     if (!employee) {
-      throw new Error("Employee not found for this user");
+      throw new ApiError("Employee not found for this user", 400);
     }
-
-    const whereClause: Prisma.NotificationWhereInput = {
-      AND: [
-        { role: "DRIVER" },
-        {
-          OR: [
-            {
-              Order: {
-                pickUpJobs: {
-                  some: {
-                    employeeId: null,
-                  },
-                },
-              },
-            },
-            {
-              Order: {
-                pickUpJobs: {
-                  some: {
-                    employeeId: employee.id,
-                  },
-                },
-              },
-            },
-            {
-              Order: {
-                deliveryJobs: {
-                  some: {
-                    employeeId: null,
-                  },
-                },
-              },
-            },
-            {
-              Order: {
-                deliveryJobs: {
-                  some: {
-                    employeeId: employee.id,
-                  },
-                },
-              },
-            },
-          ],
-        },
-      ],
-    };
-
-    let paginationArgs: Prisma.NotificationFindManyArgs = {};
-
-    if (!all) {
-      paginationArgs = {
-        skip: (page - 1) * take,
-        take,
-      };
-    }
-
     const notifications = await this.prisma.notification.findMany({
-      where: whereClause,
+      where: {
+        role: "DRIVER",
+        Order: {
+          outletId: employee.outletId,
+        },
+      },
+      take: 5,
       include: {
         Order: {
           select: {
             uuid: true,
             orderNumber: true,
             orderStatus: true,
-            addressLine: true,
-            district: true,
-            city: true,
-            user: {
-              select: {
-                firstName: true,
-                lastName: true,
-                phoneNumber: true,
-              },
-            },
-            pickUpJobs: {
-              select: {
-                id: true,
-                employeeId: true,
-                status: true,
-              },
-            },
-            deliveryJobs: {
-              select: {
-                id: true,
-                employeeId: true,
-                status: true,
-              },
-            },
           },
         },
       },
-      orderBy: { [sortBy]: sortOrder },
-      ...paginationArgs,
+      orderBy: {
+        createdAt: "desc",
+      },
     });
 
-    const count = await this.prisma.notification.count({ where: whereClause });
-
-    return {
-      data: notifications,
-      meta: this.paginationService.generateMeta({
-        page,
-        take: all ? count : take,
-        count,
-      }),
-    };
+    return notifications;
   };
 
-  getWorkerNotifications = async (
-    authUserId: number,
-    dto: GetNotificationsDTO,
-  ) => {};
-
-  markAsRead = async (authUserId: number, notificationId: number) => {};
-
-  markAllAsRead = async (authUserId: number) => {};
-
-  getUserNotification = async (authUserId: number, limit: number) => {
+  getUserNotification = async (authUserId: number, limit: number, page: number) => {
     const user = await this.prisma.user.findFirst({
       where: { id: authUserId },
     });
@@ -153,15 +58,7 @@ export class NotificationService {
     }
     const notifications = await this.prisma.notification.findMany({
       where: {
-        notifType: {
-          in: [
-            "PICKUP_STARTED",
-            "PICKUP_COMPLETED",
-            "DELIVERY_STARTED",
-            "DELIVERY_COMPLETED",
-            "ORDER_COMPLETED",
-          ],
-        },
+        role: "CUSTOMER",
         Order: {
           user: {
             id: authUserId,
@@ -172,8 +69,90 @@ export class NotificationService {
         createdAt: "desc",
       },
       take: limit,
-      include: {},
+      skip: (page - 1) * limit,
     });
     return notifications;
+  };
+
+  getWorkerNotifications = async (authUserId: number) => {
+    const employee = await this.prisma.employee.findFirst({
+      where: { userId: authUserId },
+    });
+
+    if (!employee) {
+      throw new ApiError("Employee not found for this user", 400);
+    }
+
+    const notifications = await this.prisma.notification.findMany({
+      where: {
+        role: "WORKER",
+        Order: {
+          outletId: employee.outletId,
+        },
+        NOT: {
+          readByUserIds: {
+            has: authUserId,
+          },
+        },
+      },
+      take: 5,
+      include: {
+        Order: {
+          select: {
+            uuid: true,
+            orderNumber: true,
+            orderStatus: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+
+    return { data: notifications };
+  };
+
+  markAsRead = async (authUserId: number, notificationId: number) => {
+    const notification = await this.prisma.notification.findFirst({
+      where: { id: notificationId },
+    });
+    if (!notification) {
+      throw new ApiError("Notification not found", 404);
+    }
+    if (notification.readByUserIds.includes(authUserId)) {
+      return { message: "Notification already marked as read" };
+    }
+    const updatedNotification = await this.prisma.notification.update({
+      where: { id: notificationId },
+      data: {
+        readByUserIds: {
+          push: authUserId,
+        },
+      },
+    });
+    return updatedNotification;
+  };
+
+  markAllAsRead = async (authUserId: number) => {
+    const result = await this.prisma.notification.updateMany({
+      where: {
+        NOT: {
+          readByUserIds: {
+            has: authUserId,
+          },
+        },
+      },
+      data: {
+        readByUserIds: {
+          push: authUserId,
+        },
+      },
+    });
+
+    return {
+      message: "All unread notifications have been marked as read.",
+      count: result.count,
+    };
   };
 }

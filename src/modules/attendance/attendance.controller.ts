@@ -41,4 +41,19 @@ export class AttendanceController {
       next(error);
     }
   };
+  getTodayAttendance = async (
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ) => {
+    try {
+      const authUserId = req.user?.id;
+      const result = await this.attendanceService.getTodayAttendance(
+        Number(authUserId),
+      ); // req.user?.id,
+      res.status(200).send(result);
+    } catch (error) {
+      next(error);
+    }
+  };
 }
