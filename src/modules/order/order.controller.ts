@@ -3,15 +3,27 @@ import { validate } from "class-validator";
 import { NextFunction, Request, Response } from "express";
 import { injectable } from "tsyringe";
 import { ApiError } from "../../utils/api-error";
+import { CreatePickupOrderDTO } from "./dto/createPickupAndOrder.dto";
 import { GetOrdersDTO } from "./dto/get-orders.dto";
 import { GetPendingOrdersDTO } from "./dto/get-pending-orders.dto";
 import { ProcessOrderDTO } from "./dto/proses-order.dto";
 import { OrderService } from "./order.service";
 import { OrderValidation } from "./order.validation";
-import { CreatePickupOrderDTO } from "./dto/createPickupAndOrder.dto";
 
 @injectable()
 export class OrderController {
+  private static readonly UUID_REGEX =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+  private static readonly SUCCESS_MESSAGES = {
+    ORDERS_RETRIEVED: "Orders retrieved successfully",
+    ORDER_DETAIL_RETRIEVED: "Order detail retrieved successfully",
+    ORDER_TRACKING_EXPORTED: "Order tracking data exported successfully",
+    PENDING_ORDERS_RETRIEVED: "Pending process orders retrieved successfully",
+    ORDER_PROCESSED: "Order processed successfully",
+    LAUNDRY_ITEMS_RETRIEVED: "Laundry items retrieved successfully",
+  } as const;
+
   constructor(
     private readonly orderService: OrderService,
     private readonly orderValidation: OrderValidation,
@@ -20,16 +32,9 @@ export class OrderController {
   getOrders = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const query = plainToInstance(GetOrdersDTO, req.query);
-      const validationErrors = await validate(query);
+      await this.validateDTOAndThrow(query);
 
-      if (validationErrors.length > 0) {
-        const errorMessages = validationErrors
-          .map((error) => Object.values(error.constraints || {}).join(", "))
-          .join("; ");
-        throw new ApiError(`Validation error: ${errorMessages}`, 400);
-      }
-
-      const user = (req as any).user;
+      const user = this.getCurrentUser(req);
 
       await this.orderValidation.validateOrderListAccess(
         user,
@@ -38,11 +43,12 @@ export class OrderController {
 
       const result = await this.orderService.getOrders(query, user);
 
-      res.status(200).json({
-        success: true,
-        message: "Orders retrieved successfully",
-        ...result,
-      });
+      this.sendSuccessResponse(
+        res,
+        OrderController.SUCCESS_MESSAGES.ORDERS_RETRIEVED,
+        result.data,
+        result.meta,
+      );
     } catch (error) {
       next(error);
     }
@@ -51,28 +57,18 @@ export class OrderController {
   getOrderDetail = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { orderId } = req.params;
-      const user = (req as any).user;
+      const user = this.getCurrentUser(req);
 
-      if (!orderId) {
-        throw new ApiError("Order ID is required", 400);
-      }
+      this.validateRequiredParam(orderId, "Order ID");
+      this.validateUUID(orderId, "Order ID");
 
-      const uuidRegex =
-        /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-      if (!uuidRegex.test(orderId)) {
-        throw new ApiError("Format Order ID tidak valid", 400);
-      }
+      const result = await this.orderService.getOrderDetail(orderId, user);
 
-      const result = await this.orderValidation.validateOrderDetailAccess(
-        user,
-        orderId,
+      this.sendSuccessResponse(
+        res,
+        OrderController.SUCCESS_MESSAGES.ORDER_DETAIL_RETRIEVED,
+        result,
       );
-
-      res.status(200).json({
-        success: true,
-        message: "Order detail retrieved successfully",
-        data: result,
-      });
     } catch (error) {
       next(error);
     }
@@ -85,7 +81,7 @@ export class OrderController {
   ) => {
     try {
       const query = plainToInstance(GetOrdersDTO, req.query);
-      const user = (req as any).user;
+      const user = this.getCurrentUser(req);
 
       await this.orderValidation.validateOrderListAccess(
         user,
@@ -95,32 +91,17 @@ export class OrderController {
       const exportQuery = { ...query, page: 1, take: 10000 };
       const result = await this.orderService.getOrders(exportQuery, user);
 
-      const exportData = result.data.map((order) => ({
-        orderNumber: order.orderNumber,
-        customerName: order.customer.name,
-        customerEmail: order.customer.email,
-        outletName: order.outlet.outletName,
-        status: order.orderStatus,
-        totalWeight: order.totalWeight,
-        totalPrice: order.totalPrice,
-        paymentStatus: order.paymentStatus,
-        currentWorker: order.tracking.currentWorker?.name || "N/A",
-        currentStation: order.tracking.currentWorker?.station || "N/A",
-        pickupDriver: order.tracking.pickup?.driver || "N/A",
-        deliveryDriver: order.tracking.delivery?.driver || "N/A",
-        createdAt: order.createdAt,
-        updatedAt: order.updatedAt,
-      }));
+      const exportData = this.transformOrdersForExport(result.data);
 
-      res.status(200).json({
-        success: true,
-        message: "Order tracking data exported successfully",
-        data: exportData,
-        meta: {
+      this.sendSuccessResponse(
+        res,
+        OrderController.SUCCESS_MESSAGES.ORDER_TRACKING_EXPORTED,
+        exportData,
+        {
           total: exportData.length,
           exportedAt: new Date().toISOString(),
         },
-      });
+      );
     } catch (error) {
       next(error);
     }
@@ -133,26 +114,20 @@ export class OrderController {
   ) => {
     try {
       const query = plainToInstance(GetPendingOrdersDTO, req.query);
-      const validationErrors = await validate(query);
+      await this.validateDTOAndThrow(query);
 
-      if (validationErrors.length > 0) {
-        const errorMessages = validationErrors
-          .map((error) => Object.values(error.constraints || {}).join(", "))
-          .join("; ");
-        throw new ApiError(`Validation error: ${errorMessages}`, 400);
-      }
-
-      const user = (req as any).user;
+      const user = this.getCurrentUser(req);
       const result = await this.orderService.getPendingProcessOrders(
         query,
         user,
       );
 
-      res.status(200).json({
-        success: true,
-        message: "Pending process orders retrieved successfully",
-        ...result,
-      });
+      this.sendSuccessResponse(
+        res,
+        OrderController.SUCCESS_MESSAGES.PENDING_ORDERS_RETRIEVED,
+        result.data,
+        result.meta,
+      );
     } catch (error) {
       next(error);
     }
@@ -162,19 +137,11 @@ export class OrderController {
     try {
       const { orderId } = req.params;
       const body = plainToInstance(ProcessOrderDTO, req.body);
-      const user = (req as any).user;
+      const user = this.getCurrentUser(req);
 
-      if (!orderId) {
-        throw new ApiError("Order ID is required", 400);
-      }
-
-      const validationErrors = await validate(body);
-      if (validationErrors.length > 0) {
-        const errorMessages = validationErrors
-          .map((error) => Object.values(error.constraints || {}).join(", "))
-          .join("; ");
-        throw new ApiError(`Validation error: ${errorMessages}`, 400);
-      }
+      this.validateRequiredParam(orderId, "Order ID");
+      this.validateUUID(orderId, "Order ID");
+      await this.validateDTOAndThrow(body);
 
       const result = await this.orderService.processOrder(orderId, body, user);
 
@@ -192,14 +159,82 @@ export class OrderController {
     try {
       const result = await this.orderService.getLaundryItems();
 
-      res.status(200).json({
-        success: true,
-        message: "Laundry items retrieved successfully",
-        ...result,
-      });
+      this.sendSuccessResponse(
+        res,
+        OrderController.SUCCESS_MESSAGES.LAUNDRY_ITEMS_RETRIEVED,
+        result.data,
+      );
     } catch (error) {
       next(error);
     }
+  };
+
+  private validateDTOAndThrow = async <T>(dto: T): Promise<void> => {
+    const validationErrors = await validate(dto as any);
+
+    if (validationErrors.length > 0) {
+      const errorMessages = validationErrors
+        .map((error) => Object.values(error.constraints || {}).join(", "))
+        .join("; ");
+      throw new ApiError(`Validation error: ${errorMessages}`, 400);
+    }
+  };
+
+  private validateUUID = (id: string, fieldName: string = "ID"): void => {
+    if (!OrderController.UUID_REGEX.test(id)) {
+      throw new ApiError(`Format ${fieldName} tidak valid`, 400);
+    }
+  };
+
+  private validateRequiredParam = (param: any, fieldName: string): void => {
+    if (!param) {
+      throw new ApiError(`${fieldName} is required`, 400);
+    }
+  };
+
+  private getCurrentUser = (req: Request): any => {
+    return (req as any).user;
+  };
+
+  private sendSuccessResponse = (
+    res: Response,
+    message: string,
+    data?: any,
+    meta?: any,
+  ): void => {
+    const response: any = {
+      success: true,
+      message,
+    };
+
+    if (data !== undefined) {
+      response.data = data;
+    }
+
+    if (meta !== undefined) {
+      response.meta = meta;
+    }
+
+    res.status(200).json(response);
+  };
+
+  private transformOrdersForExport = (orders: any[]): any[] => {
+    return orders.map((order) => ({
+      orderNumber: order.orderNumber,
+      customerName: order.customer.name,
+      customerEmail: order.customer.email,
+      outletName: order.outlet.outletName,
+      status: order.orderStatus,
+      totalWeight: order.totalWeight,
+      totalPrice: order.totalPrice,
+      paymentStatus: order.paymentStatus,
+      currentWorker: order.tracking.currentWorker?.name || "N/A",
+      currentStation: order.tracking.currentWorker?.station || "N/A",
+      pickupDriver: order.tracking.pickup?.driver || "N/A",
+      deliveryDriver: order.tracking.delivery?.driver || "N/A",
+      createdAt: order.createdAt,
+      updatedAt: order.updatedAt,
+    }));
   };
 
   createPickupAndOrder = async (
