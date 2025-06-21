@@ -113,3 +113,48 @@
 //     });
 //   };
 // }
+
+import { injectable } from "tsyringe";
+import cron from "node-cron";
+import { PrismaClient, OrderStatus } from "@prisma/client";
+
+@injectable()
+export class CronService {
+  private prisma = new PrismaClient();
+
+  public initializeJobs(): void {
+    cron.schedule("*/30 * * * *", async () => {
+      console.log("Cron job executed at", new Date().toLocaleString("id-ID", { timeZone: "Asia/Jakarta" }));
+
+      const now = new Date();
+      const twoDaysAgo = new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000);
+
+      const orders = await this.prisma.order.findMany({
+        where: {
+          orderStatus: OrderStatus.DELIVERED_TO_CUSTOMER,
+          actualDeliveryTime: { lte: twoDaysAgo },
+        },
+      });
+
+      for (const order of orders) {
+        await this.prisma.order.update({
+          where: { uuid: order.uuid },
+          data: { orderStatus: OrderStatus.COMPLETED },
+        });
+
+        await this.prisma.notification.create({
+          data: {
+            orderId: order.uuid,
+            message: `Order #${order.orderNumber} auto-confirmed after 48h.`,
+            notifType: "ORDER_FINISHED",
+            orderStatus: OrderStatus.COMPLETED,
+            role: "CUSTOMER",
+            updatedAt: new Date(),
+          },
+        });
+
+        console.log(`Auto-confirmed order ${order.uuid}`);
+      }
+    });
+  }
+}

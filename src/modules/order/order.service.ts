@@ -1161,6 +1161,7 @@ export class OrderService {
             notifType: true,
             role: true,
             // isRead: true,
+            readByUserIds: true,
             createdAt: true,
           },
           orderBy: { createdAt: "desc" },
@@ -1990,6 +1991,10 @@ export class OrderService {
       closestOutlet.longitude,
     );
 
+    let totalDeliveryFee = 0;
+    if (distanceKm <= 1) { totalDeliveryFee = closestOutlet.deliveryBaseFee } 
+    else { totalDeliveryFee = closestOutlet.deliveryBaseFee + (distanceKm - 1) * closestOutlet.deliveryPerKm }
+
     const orderNumber = `BF-${Date.now()}`;
 
     const newOrder = await this.prisma.order.create({
@@ -2005,7 +2010,7 @@ export class OrderService {
         latitude: address.latitude,
         longitude: address.longitude,
         scheduledPickupTime: new Date(scheduledPickupTime),
-        totalDeliveryFee: distanceKm * closestOutlet.deliveryBaseFee,
+        totalDeliveryFee
       },
     });
 
