@@ -4,6 +4,7 @@
     "target": "es2016",
     "module": "commonjs",
     "outDir": "./dist",
+    "rootDir": "./src",
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "strict": true,
@@ -12,5 +13,6 @@
     "emitDecoratorMetadata": true,
     "resolveJsonModule": true
   },
+  "include": ["src/**/*.ts"],
   "exclude": ["test", "**/*.spec.ts"]
 }
