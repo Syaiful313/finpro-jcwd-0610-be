@@ -1,7 +1,7 @@
 import { injectable } from "tsyringe";
 import { ApiError } from "../../utils/api-error";
 import { PrismaService } from "../prisma/prisma.service";
-import { CreatePaymentLinkDTO } from './dto/createPaymentLink.dto';
+import { CreatePaymentLinkDTO } from "./dto/createPaymentLink.dto";
 import xenditService from "../../utils/xendit";
 import { UpdatePaymentDTO } from "./dto/updatePayment.dto";
 
@@ -9,7 +9,10 @@ import { UpdatePaymentDTO } from "./dto/updatePayment.dto";
 export class PaymentService {
   constructor(private readonly prisma: PrismaService) {}
 
-  createPaymentLink = async (authUserId: number, body: CreatePaymentLinkDTO) => {
+  createPaymentLink = async (
+    authUserId: number,
+    body: CreatePaymentLinkDTO,
+  ) => {
     const { uuid } = body;
     const user = await this.prisma.user.findUnique({
       where: { id: authUserId },
@@ -32,64 +35,70 @@ export class PaymentService {
     }
 
     if (order.totalPrice === null) {
-        throw new ApiError("Total price is null", 400);
+      throw new ApiError("Total price is null", 400);
     }
 
     const params = {
-        externalId: uuid,
-        amount: order.totalPrice,
-        email: user.email,
-        successRedirectUrl: `${process.env.FRONTEND_URL}/order/${order.uuid}`,
-    }
+      externalId: uuid,
+      amount: order.totalPrice,
+      email: user.email,
+      successRedirectUrl: `${process.env.FRONTEND_URL}/order/${order.uuid}`,
+    };
 
     const invoice = await xenditService.createInvoice(params);
 
     const { id, invoiceUrl, successRedirectUrl, expiryDate, status } = invoice;
 
     const updatedOrder = await this.prisma.order.update({
-        where: { uuid: order.uuid },
-        data: {
-            xenditId: id,
-            invoiceUrl: invoiceUrl,
-            successRedirectUrl: successRedirectUrl,
-            xenditExpiryDate: expiryDate,
-            xenditPaymentStatus: status,
-        },
+      where: { uuid: order.uuid },
+      data: {
+        xenditId: id,
+        invoiceUrl: invoiceUrl,
+        successRedirectUrl: successRedirectUrl,
+        xenditExpiryDate: expiryDate,
+        xenditPaymentStatus: status,
+      },
     });
 
-    return {updatedOrder};
-  }
+    return { updatedOrder };
+  };
 
   updatePaymentStatus = async (body: UpdatePaymentDTO) => {
     const { id, status, paid_at } = body;
     const order = await this.prisma.order.findFirst({
-      where: { xenditId: id }
-    })
+      where: { xenditId: id },
+    });
 
     if (order?.orderStatus === "WAITING_PAYMENT") {
       await this.prisma.order.update({
         where: { xenditId: id },
-        data: { orderStatus: "READY_FOR_DELIVERY" }
-      })
+        data: { orderStatus: "READY_FOR_DELIVERY" },
+      });
 
       await this.prisma.notification.create({
         data: {
           message: "Order is ready to deliver",
           orderStatus: "READY_FOR_DELIVERY",
-          notifType: "NEW_DELIVERY_REQUEST"
-        }
-      })
+          notifType: "NEW_DELIVERY_REQUEST",
+          role: "DRIVER",
+        },
+      });
+      await this.prisma.deliveryJob.create({
+        data: {
+          orderId: order.uuid,
+        },
+      });
     }
 
     const updatedOrder = await this.prisma.order.update({
-        where: { xenditId: id },
-        data: {
-            paymentStatus: "PAID",
-            xenditPaymentStatus: status,
-            paidAt: paid_at,
-        }
-    })
+      where: { xenditId: id },
+      data: {
+        paymentStatus: "PAID",
+        xenditPaymentStatus: status,
+        paidAt: paid_at,
+      },
+    });
 
     return updatedOrder;
-  }
+  };
 }
