@@ -506,17 +506,6 @@ export class DriverService {
         where: { id: jobId },
         data: { employeeId: employee.id, status: DriverTaskStatus.ASSIGNED },
       });
-
-      if (type === "delivery") {
-        const now = new Date();
-        const scheduledTime = new Date(now.getTime() + 30 * 60 * 1000);
-
-        await tx.order.update({
-          where: { uuid: job.order.uuid },
-          data: { scheduledDeliveryTime: scheduledTime },
-        });
-      }
-
       await tx.notification.create({
         data: {
           orderId: job.order.uuid,
@@ -571,14 +560,9 @@ export class DriverService {
         where: { id: jobId },
         data: { status: DriverTaskStatus.IN_PROGRESS },
       });
-
-      const orderUpdateData: Prisma.OrderUpdateInput = {
-        orderStatus: orderStatus,
-      };
-
       await tx.order.update({
         where: { uuid: job.order.uuid },
-        data: orderUpdateData,
+        data: { orderStatus },
       });
 
       await tx.notification.createMany({

@@ -6,6 +6,7 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+  // directUrl = env("DIRECT_URL")
 }
 
 model Sample {
@@ -19,21 +20,24 @@ model Sample {
 }
 
 model User {
-  id          Int       @id @default(autoincrement())
-  firstName   String
-  lastName    String
-  email       String    @unique
-  password    String?
-  role        Role      @default(CUSTOMER)
-  phoneNumber String?   @unique
-  profilePic  String?
-  isVerified  Boolean   @default(false)
-  provider    Provider  @default(CREDENTIAL)
-  outletId    Int?
-  outlet      Outlet?   @relation(fields: [outletId], references: [id])
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  deletedAt   DateTime?
+  id                     Int       @id @default(autoincrement())
+  firstName              String
+  lastName               String
+  email                  String    @unique
+  password               String?
+  role                   Role      @default(CUSTOMER)
+  phoneNumber            String?   @unique
+  profilePic             String?
+  isVerified             Boolean   @default(false)
+  provider               Provider  @default(CREDENTIAL)
+  outletId               Int?
+  outlet                 Outlet?   @relation(fields: [outletId], references: [id])
+  resetPasswordToken     String?
+  resetPasswordTokenUsed Boolean?
+  verificationSentAt     DateTime?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+  deletedAt              DateTime?
 
   employees Employee[]
   addresses Address[]
@@ -61,7 +65,6 @@ model Notification {
   orderStatus   OrderStatus?
   notifType     NotifType
   role          Role?
-  // isRead        Boolean      @default(false)
   readByUserIds Int[]        @default([])
   createdAt     DateTime     @default(now())
   updatedAt     DateTime?    @updatedAt
