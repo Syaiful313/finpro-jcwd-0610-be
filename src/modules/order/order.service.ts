@@ -1,4 +1,5 @@
 import { DriverTaskStatus, OrderStatus, Prisma, Role } from "@prisma/client";
+import { customAlphabet } from "nanoid";
 import { injectable } from "tsyringe";
 import { ApiError } from "../../utils/api-error";
 import { DistanceCalculator } from "../../utils/distance.calculator";
@@ -1178,10 +1179,16 @@ export class OrderService {
     );
 
     let totalDeliveryFee = 0;
-    if (distanceKm <= 1) { totalDeliveryFee = closestOutlet.deliveryBaseFee } 
-    else { totalDeliveryFee = closestOutlet.deliveryBaseFee + (distanceKm - 1) * closestOutlet.deliveryPerKm }
+    if (distanceKm <= 1) {
+      totalDeliveryFee = closestOutlet.deliveryBaseFee;
+    } else {
+      totalDeliveryFee =
+        closestOutlet.deliveryBaseFee +
+        (distanceKm - 1) * closestOutlet.deliveryPerKm;
+    }
 
-    const orderNumber = `BF-${Date.now()}`;
+    const nanoid = customAlphabet("0123456789", 6);
+    const orderNumber = `BF-${nanoid(6)}`;
 
     const newOrder = await this.prisma.order.create({
       data: {
@@ -1196,7 +1203,7 @@ export class OrderService {
         latitude: address.latitude,
         longitude: address.longitude,
         scheduledPickupTime: new Date(scheduledPickupTime),
-        totalDeliveryFee
+        totalDeliveryFee,
       },
     });
 
