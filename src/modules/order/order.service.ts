@@ -1089,6 +1089,15 @@ export class OrderService {
           });
         }
       }
+      
+      await tx.notification.create({
+        data: {
+          message: `Pesanan ${existingOrder.orderNumber} sedang diproses di ${existingOrder.outlet.outletName}`,
+          notifType: "ORDER_STARTED",
+          role: "WORKER",
+          orderId: orderId,
+        },
+      });
 
       return updatedOrder;
     });
@@ -1178,8 +1187,13 @@ export class OrderService {
     );
 
     let totalDeliveryFee = 0;
-    if (distanceKm <= 1) { totalDeliveryFee = closestOutlet.deliveryBaseFee } 
-    else { totalDeliveryFee = closestOutlet.deliveryBaseFee + (distanceKm - 1) * closestOutlet.deliveryPerKm }
+    if (distanceKm <= 1) {
+      totalDeliveryFee = closestOutlet.deliveryBaseFee;
+    } else {
+      totalDeliveryFee =
+        closestOutlet.deliveryBaseFee +
+        (distanceKm - 1) * closestOutlet.deliveryPerKm;
+    }
 
     const orderNumber = `BF-${Date.now()}`;
 
@@ -1196,7 +1210,7 @@ export class OrderService {
         latitude: address.latitude,
         longitude: address.longitude,
         scheduledPickupTime: new Date(scheduledPickupTime),
-        totalDeliveryFee
+        totalDeliveryFee,
       },
     });
 
