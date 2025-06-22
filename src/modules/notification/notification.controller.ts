@@ -34,10 +34,8 @@ export class NotificationController {
     try {
       const authUserId = Number(req.user!.id);
       const limit = Number(req.query.limit) || 5;
-      const result = await this.notificationService.getUserNotification(
-        authUserId,
-        limit,
-      );
+      const page = Number(req.query.page) || 1;
+      const result = await this.notificationService.getUserNotification(authUserId, limit, page);
       res.status(200).send(result);
     } catch (error) {
       next(error);

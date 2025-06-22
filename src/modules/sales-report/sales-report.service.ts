@@ -255,25 +255,27 @@ export class SalesReportService {
       },
     });
 
-    const outletComparison: OutletComparisonData[] = outlets.map((outlet) => {
-      const totalIncome = outlet.orders.reduce(
-        (sum, order) => sum + (order.totalPrice || 0),
-        0,
-      );
-      const totalOrders = outlet.orders.length;
-      const averageOrderValue =
-        totalOrders > 0
-          ? Math.round((totalIncome / totalOrders) * 100) / 100
-          : 0;
+    const outletComparison: OutletComparisonData[] = outlets.map(
+      (outlet: any) => {
+        const totalIncome = outlet.orders.reduce(
+          (sum: number, order: any) => sum + (order.totalPrice || 0),
+          0,
+        );
+        const totalOrders = outlet.orders.length;
+        const averageOrderValue =
+          totalOrders > 0
+            ? Math.round((totalIncome / totalOrders) * 100) / 100
+            : 0;
 
-      return {
-        outletId: outlet.id,
-        outletName: outlet.outletName,
-        totalIncome,
-        totalOrders,
-        averageOrderValue,
-      };
-    });
+        return {
+          outletId: outlet.id,
+          outletName: outlet.outletName,
+          totalIncome,
+          totalOrders,
+          averageOrderValue,
+        };
+      },
+    );
 
     const sortedData = outletComparison.sort(
       (a, b) => b.totalIncome - a.totalIncome,

@@ -3,6 +3,93 @@ import * as argon2 from 'argon2';
 
 const prisma = new PrismaClient();
 
+// Add type interfaces for better type safety
+interface OutletType {
+  id: number;
+  outletName: string;
+  address: string;
+  latitude: number;
+  longitude: number;
+  serviceRadius: number;
+  deliveryBaseFee: number;
+  deliveryPerKm: number;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+  deletedAt: Date | null;
+}
+
+interface UserType {
+  id: number;
+  firstName: string;
+  lastName: string;
+  email: string;
+  password: string | null;
+  role: Role;
+  phoneNumber: string | null;
+  profilePic: string | null;
+  isVerified: boolean;
+  provider: any;
+  outletId: number | null;
+  createdAt: Date;
+  updatedAt: Date;
+  deletedAt: Date | null;
+}
+
+interface EmployeeType {
+  id: number;
+  userId: number;
+  outletId: number;
+  npwp: string;
+  createdAt: Date;
+  updatedAt: Date;
+  deletedAt: Date | null;
+  user: UserType;
+}
+
+interface LaundryItemType {
+  id: number;
+  name: string;
+  category: string;
+  basePrice: number;
+  pricingType: any;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+  deletedAt: Date | null;
+}
+
+interface OrderType {
+  uuid: string;
+  userId: number;
+  outletId: number;
+  addressLine: string;
+  district: string;
+  city: string;
+  province: string;
+  postalCode: string;
+  latitude: number | null;
+  longitude: number | null;
+  orderNumber: string;
+  orderStatus: OrderStatus;
+  scheduledPickupTime: Date | null;
+  actualPickupTime: Date | null;
+  scheduledDeliveryTime: Date | null;
+  actualDeliveryTime: Date | null;
+  totalDeliveryFee: number | null;
+  totalWeight: number | null;
+  totalPrice: number | null;
+  paymentStatus: PaymentStatus;
+  xenditId: string | null;
+  invoiceUrl: string | null;
+  successRedirectUrl: string | null;
+  xenditExpiryDate: Date | null;
+  xenditPaymentStatus: string | null;
+  paidAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 function randomDate(start: Date, end: Date): Date {
   return new Date(start.getTime() + Math.random() * (end.getTime() - start.getTime()));
 }
@@ -53,7 +140,8 @@ async function seedSalesReportData() {
       }
     ];
 
-    const outlets = [];
+    // Fix: Add explicit type annotation
+    const outlets: OutletType[] = [];
     for (const data of outletData) {
       let outlet = await prisma.outlet.findFirst({
         where: { 
@@ -68,7 +156,7 @@ async function seedSalesReportData() {
       } else {
         console.log(`⚠️  Outlet already exists: ${data.outletName}`);
       }
-      outlets.push(outlet);
+      outlets.push(outlet as OutletType);
     }
 
     console.log('👥 Creating users...');
@@ -319,7 +407,8 @@ async function seedSalesReportData() {
       }
     ];
 
-    const users = [];
+    // Fix: Add explicit type annotation
+    const users: UserType[] = [];
     for (const data of userData) {
       let user = await prisma.user.findFirst({
         where: { 
@@ -343,7 +432,7 @@ async function seedSalesReportData() {
           console.log(`⚠️  User already exists: ${data.email}`);
         }
       }
-      users.push(user);
+      users.push(user as UserType);
     }
 
     // ✅ CREATE EMPLOYEE RECORDS for OUTLET_ADMIN, DRIVER, and WORKER
@@ -355,7 +444,8 @@ async function seedSalesReportData() {
       'WORKER'
     ];
 
-    const employees = [];
+    // Fix: Add explicit type annotation
+    const employees: (EmployeeType & { outletId: number })[] = [];
     for (const user of users) {
       if (employeeTypes.includes(user.role)) {
         let outletId: number;
@@ -408,7 +498,7 @@ async function seedSalesReportData() {
           ...existingEmployee,
           user,
           outletId
-        });
+        } as EmployeeType & { outletId: number });
       }
     }
 
@@ -422,7 +512,8 @@ async function seedSalesReportData() {
       { name: 'Jaket', category: 'Pakaian Luar', basePrice: 15000, pricingType: 'PER_PIECE' as const }
     ];
 
-    const laundryItems = [];
+    // Fix: Add explicit type annotation
+    const laundryItems: LaundryItemType[] = [];
     for (const itemData of laundryItemsData) {
       let item = await prisma.laundryItem.findFirst({
         where: { 
@@ -437,7 +528,7 @@ async function seedSalesReportData() {
       } else {
         console.log(`⚠️  Laundry item already exists: ${itemData.name}`);
       }
-      laundryItems.push(item);
+      laundryItems.push(item as LaundryItemType);
     }
 
     console.log('📦 Creating orders with diverse date ranges...');
@@ -453,7 +544,8 @@ async function seedSalesReportData() {
       { start: new Date('2025-03-01'), end: new Date('2025-03-31'), count: 45 }, // March 2025
     ];
 
-    const orders = [];
+    // Fix: Add explicit type annotation
+    const orders: OrderType[] = [];
     let totalOrderCount = 0;
 
     for (const period of periods) {
@@ -472,7 +564,7 @@ async function seedSalesReportData() {
         const existingOrder = await prisma.order.findFirst({ where: { orderNumber } });
         if (existingOrder) {
           console.log(`⚠️  Order ${orderNumber} already exists, skipping...`);
-          orders.push(existingOrder);
+          orders.push(existingOrder as OrderType);
           continue;
         }
 
@@ -498,7 +590,7 @@ async function seedSalesReportData() {
             updatedAt: paidDate
           }
         });
-        orders.push(order);
+        orders.push(order as OrderType);
         totalOrderCount++;
 
         // Create order items

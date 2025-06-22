@@ -3,9 +3,9 @@ import { autoInjectable } from "tsyringe";
 import { env } from "../../config";
 import { JwtMiddleware } from "../../middleware/jwt.middleware";
 import { verifyRole } from "../../middleware/role.middleware";
-import { OrderController } from "./order.controller";
 import { validateBody } from "../../middleware/validation.middleware";
 import { CreatePickupOrderDTO } from "./dto/createPickupAndOrder.dto";
+import { OrderController } from "./order.controller";
 
 @autoInjectable()
 export class OrderRouter {

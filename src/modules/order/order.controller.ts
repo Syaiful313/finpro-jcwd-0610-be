@@ -7,7 +7,9 @@ import { CreatePickupOrderDTO } from "./dto/createPickupAndOrder.dto";
 import { GetOrdersDTO } from "./dto/get-orders.dto";
 import { GetPendingOrdersDTO } from "./dto/get-pending-orders.dto";
 import { ProcessOrderDTO } from "./dto/proses-order.dto";
+import { OrderTransformerService } from "./order-transformer.service";
 import { OrderService } from "./order.service";
+import { CurrentUser } from "./order.types";
 import { OrderValidation } from "./order.validation";
 
 @injectable()
@@ -27,6 +29,7 @@ export class OrderController {
   constructor(
     private readonly orderService: OrderService,
     private readonly orderValidation: OrderValidation,
+    private readonly transformerService: OrderTransformerService,
   ) {}
 
   getOrders = async (req: Request, res: Response, next: NextFunction) => {
@@ -91,7 +94,9 @@ export class OrderController {
       const exportQuery = { ...query, page: 1, take: 10000 };
       const result = await this.orderService.getOrders(exportQuery, user);
 
-      const exportData = this.transformOrdersForExport(result.data);
+      const exportData = this.transformerService.transformOrdersForExport(
+        result.data,
+      );
 
       this.sendSuccessResponse(
         res,
@@ -169,74 +174,6 @@ export class OrderController {
     }
   };
 
-  private validateDTOAndThrow = async <T>(dto: T): Promise<void> => {
-    const validationErrors = await validate(dto as any);
-
-    if (validationErrors.length > 0) {
-      const errorMessages = validationErrors
-        .map((error) => Object.values(error.constraints || {}).join(", "))
-        .join("; ");
-      throw new ApiError(`Validation error: ${errorMessages}`, 400);
-    }
-  };
-
-  private validateUUID = (id: string, fieldName: string = "ID"): void => {
-    if (!OrderController.UUID_REGEX.test(id)) {
-      throw new ApiError(`Format ${fieldName} tidak valid`, 400);
-    }
-  };
-
-  private validateRequiredParam = (param: any, fieldName: string): void => {
-    if (!param) {
-      throw new ApiError(`${fieldName} is required`, 400);
-    }
-  };
-
-  private getCurrentUser = (req: Request): any => {
-    return (req as any).user;
-  };
-
-  private sendSuccessResponse = (
-    res: Response,
-    message: string,
-    data?: any,
-    meta?: any,
-  ): void => {
-    const response: any = {
-      success: true,
-      message,
-    };
-
-    if (data !== undefined) {
-      response.data = data;
-    }
-
-    if (meta !== undefined) {
-      response.meta = meta;
-    }
-
-    res.status(200).json(response);
-  };
-
-  private transformOrdersForExport = (orders: any[]): any[] => {
-    return orders.map((order) => ({
-      orderNumber: order.orderNumber,
-      customerName: order.customer.name,
-      customerEmail: order.customer.email,
-      outletName: order.outlet.outletName,
-      status: order.orderStatus,
-      totalWeight: order.totalWeight,
-      totalPrice: order.totalPrice,
-      paymentStatus: order.paymentStatus,
-      currentWorker: order.tracking.currentWorker?.name || "N/A",
-      currentStation: order.tracking.currentWorker?.station || "N/A",
-      pickupDriver: order.tracking.pickup?.driver || "N/A",
-      deliveryDriver: order.tracking.delivery?.driver || "N/A",
-      createdAt: order.createdAt,
-      updatedAt: order.updatedAt,
-    }));
-  };
-
   createPickupAndOrder = async (
     req: Request,
     res: Response,
@@ -292,5 +229,54 @@ export class OrderController {
     } catch (error) {
       next(error);
     }
+  };
+
+  private validateDTOAndThrow = async <T>(dto: T): Promise<void> => {
+    const validationErrors = await validate(dto as any);
+
+    if (validationErrors.length > 0) {
+      const errorMessages = validationErrors
+        .map((error) => Object.values(error.constraints || {}).join(", "))
+        .join("; ");
+      throw new ApiError(`Validation error: ${errorMessages}`, 400);
+    }
+  };
+
+  private validateUUID = (id: string, fieldName: string = "ID"): void => {
+    if (!OrderController.UUID_REGEX.test(id)) {
+      throw new ApiError(`Format ${fieldName} tidak valid`, 400);
+    }
+  };
+
+  private validateRequiredParam = (param: any, fieldName: string): void => {
+    if (!param) {
+      throw new ApiError(`${fieldName} is required`, 400);
+    }
+  };
+
+  private getCurrentUser = (req: Request): CurrentUser => {
+    return (req as any).user;
+  };
+
+  private sendSuccessResponse = (
+    res: Response,
+    message: string,
+    data?: any,
+    meta?: any,
+  ): void => {
+    const response: any = {
+      success: true,
+      message,
+    };
+
+    if (data !== undefined) {
+      response.data = data;
+    }
+
+    if (meta !== undefined) {
+      response.meta = meta;
+    }
+
+    res.status(200).json(response);
   };
 }

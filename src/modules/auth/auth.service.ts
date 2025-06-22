@@ -132,6 +132,13 @@ export class AuthService {
       verificationLink,
     );
 
+    await this.prisma.user.update({
+      where: { id: newUser.id },
+      data: {
+        verificationSentAt: new Date(),
+      },
+    });
+
     return newUser;
   };
 
@@ -195,6 +202,7 @@ export class AuthService {
           lastName,
           profilePic: picture,
           provider: "GOOGLE",
+          isVerified: true,
         },
       });
     }
@@ -220,19 +228,29 @@ export class AuthService {
     if (!existingUser) {
       throw new ApiError("Email is not registered", 400);
     }
-    if (existingUser.isVerified === false) {
-      throw new ApiError("Please verify your email", 400);
+
+    if (existingUser.provider === "GOOGLE") {
+      throw new ApiError("This account uses Google Sign-In. Please login using Google", 400);
     }
 
     const forgotPasswordPayload = {
       userId: existingUser.id,
       email: existingUser.email,
     };
+
     const resetPasswordToken = this.tokenService.generateToken(
       forgotPasswordPayload,
       process.env.JWT_SECRET_KEY_RESET_PASSWORD as string,
       { expiresIn: "15m" },
     );
+
+    await this.prisma.user.update({
+      where: { id: existingUser.id },
+      data: {
+        resetPasswordToken: resetPasswordToken,
+        resetPasswordTokenUsed: false,
+      },
+    });
 
     const resetPasswordLink = `${process.env.FRONTEND_URL}/reset-password?token=${resetPasswordToken}`;
     await this.mailService.sendResetPasswordEmail(
@@ -244,20 +262,28 @@ export class AuthService {
     return existingUser;
   };
 
-  resetPassword = async (body: ResetPasswordDTO, authUserId: number) => {
+  resetPassword = async (body: ResetPasswordDTO, resetPasswordToken: string) => {
     const { newPassword } = body;
     const existingUser = await this.prisma.user.findFirst({
-      where: { id: authUserId },
+      where: {
+        resetPasswordToken,
+        resetPasswordTokenUsed: false,
+      },
     });
+    
     if (!existingUser) {
-      throw new ApiError("User is not registered", 400);
+      throw new ApiError("You have previously reset your password", 400);
     }
 
     const hashedPassword = await this.passwordService.hashPassword(newPassword);
 
     await this.prisma.user.update({
-      where: { id: existingUser.id },
-      data: { password: hashedPassword },
+      where: { id: existingUser.id , resetPasswordToken},
+      data: {
+        password: hashedPassword,
+        resetPasswordTokenUsed: true,
+        resetPasswordToken: null,
+      },
     });
 
     return {
@@ -292,6 +318,13 @@ export class AuthService {
       user.email,
       verificationLink,
     );
+
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        verificationSentAt: new Date(),
+      },
+    });
 
     return { message: "Verification email sent successfully" };
   };
