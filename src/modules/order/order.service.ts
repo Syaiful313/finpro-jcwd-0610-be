@@ -1,5 +1,5 @@
 import { DriverTaskStatus, OrderStatus, Prisma, Role } from "@prisma/client";
-import { customAlphabet, nanoid } from "nanoid";
+import { customAlphabet } from "nanoid";
 import { injectable } from "tsyringe";
 import { ApiError } from "../../utils/api-error";
 import { DistanceCalculator } from "../../utils/distance.calculator";
@@ -1211,6 +1211,14 @@ export class OrderService {
       data: {
         orderId: newOrder.uuid,
         pickUpScheduleOutlet: scheduledPickupTime,
+      },
+    });
+
+    await this.prisma.notification.create({
+      data: {
+        message: `Request pickup for order ${newOrder.orderNumber}`,
+        orderStatus: "WAITING_FOR_PICKUP",
+        notifType: "NEW_PICKUP_REQUEST",
       },
     });
 
