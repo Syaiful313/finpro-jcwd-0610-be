@@ -33,7 +33,7 @@ export class AttendanceController {
       const authUserId = req.user?.id;
       const query = plainToInstance(GetAttendanceReportDTO, req.query);
       const result = await this.attendanceService.getAttendances(
-        Number(authUserId), // req.user?.id,
+        Number(authUserId),
         query,
       );
       res.status(200).send(result);
@@ -50,7 +50,7 @@ export class AttendanceController {
       const authUserId = req.user?.id;
       const result = await this.attendanceService.getTodayAttendance(
         Number(authUserId),
-      ); // req.user?.id,
+      );
       res.status(200).send(result);
     } catch (error) {
       next(error);
