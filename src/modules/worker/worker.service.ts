@@ -267,20 +267,17 @@ export class WorkerService {
 
     let nextStatus: OrderStatus;
     let notificationType: NotifType;
-    let outletAdminMessage: string;
     let nextWorkerMessage: string | null = null;
 
     switch (workerType) {
       case WorkerTypes.WASHING:
         nextStatus = OrderStatus.BEING_WASHED;
         notificationType = NotifType.ORDER_STARTED;
-        outletAdminMessage = `Order ${order.orderNumber} has been washed and is now ready for the Ironing station.`;
         nextWorkerMessage = `New order ${order.orderNumber} is ready for ironing process.`;
         break;
       case WorkerTypes.IRONING:
         nextStatus = OrderStatus.BEING_IRONED;
         notificationType = NotifType.ORDER_STARTED;
-        outletAdminMessage = `Order ${order.orderNumber} has been ironed and is now ready for the Packing station.`;
         nextWorkerMessage = `New order ${order.orderNumber} is ready for packing process.`;
         break;
       case WorkerTypes.PACKING:
@@ -289,7 +286,6 @@ export class WorkerService {
             ? OrderStatus.READY_FOR_DELIVERY
             : OrderStatus.WAITING_PAYMENT;
         notificationType = NotifType.ORDER_COMPLETED;
-        outletAdminMessage = `All processes for Order ${order.orderNumber} are complete by ${employee.user.firstName}.`;
         break;
     }
 
@@ -310,16 +306,6 @@ export class WorkerService {
           data: { orderStatus: nextStatus },
         });
       }
-
-      await tx.notification.create({
-        data: {
-          orderId: order.uuid,
-          message: outletAdminMessage,
-          notifType: notificationType,
-          orderStatus: nextStatus,
-          role: Role.OUTLET_ADMIN,
-        },
-      });
 
       if (nextWorkerMessage) {
         await tx.notification.create({
@@ -499,17 +485,20 @@ export class WorkerService {
     let nextStatus: OrderStatus;
     let notificationType: NotifType;
     let outletAdminMessage: string;
+    let nextWorkerMessage: string | null = null;
 
     switch (workerType) {
       case "WASHING":
         nextStatus = OrderStatus.BEING_WASHED;
         notificationType = NotifType.BYPASS_APPROVED;
         outletAdminMessage = `Order ${order.orderNumber} has been processed at the Washing station with an approved bypass.`;
+        nextWorkerMessage = `New order ${order.orderNumber} is ready for ironing process after bypass.`;
         break;
       case "IRONING":
         nextStatus = OrderStatus.BEING_IRONED;
         notificationType = NotifType.BYPASS_APPROVED;
         outletAdminMessage = `Order ${order.orderNumber} has been processed at the Ironing station with an approved bypass.`;
+        nextWorkerMessage = `New order ${order.orderNumber} is ready for packing process after bypass.`;
         break;
       case "PACKING":
         nextStatus =
@@ -546,6 +535,18 @@ export class WorkerService {
         where: { uuid: order.uuid },
         data: { orderStatus: nextStatus },
       });
+
+      if (nextWorkerMessage) {
+        await tx.notification.create({
+          data: {
+            orderId: order.uuid,
+            message: nextWorkerMessage,
+            notifType: NotifType.ORDER_STARTED,
+            orderStatus: nextStatus,
+            role: Role.WORKER,
+          },
+        });
+      }
 
       await tx.notification.create({
         data: {
