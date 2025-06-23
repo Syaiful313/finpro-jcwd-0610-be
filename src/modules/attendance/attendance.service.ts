@@ -258,7 +258,6 @@ export class AttendanceService {
       999,
     );
 
-    // 1. Cari data absensi untuk HARI INI
     const todayAttendance = await this.prisma.attendance.findFirst({
       where: {
         employeeId: employeeId,
@@ -269,13 +268,12 @@ export class AttendanceService {
       },
     });
 
-    // 2. Jika tidak ada absensi hari ini, cek apakah ada sesi "menggantung" dari hari sebelumnya
     let unclosedSessionFromPreviousDay = null;
     if (!todayAttendance) {
       unclosedSessionFromPreviousDay = await this.prisma.attendance.findFirst({
         where: {
           employeeId: employeeId,
-          clockOutAt: null, // Sesi yang masih aktif
+          clockOutAt: null,
           clockInAt: { lt: startOfDay },
         },
         select: { id: true, clockInAt: true },

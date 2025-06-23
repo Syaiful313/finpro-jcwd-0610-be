@@ -13,10 +13,7 @@ export class NotificationService {
     private readonly paginationService: PaginationService,
   ) {}
 
-  getDriverNotifications = async (
-    authUserId: number,
-    dto: GetNotificationsDTO,
-  ) => {
+  getDriverNotifications = async (authUserId: number) => {
     const employee = await this.prisma.employee.findFirst({
       where: { userId: authUserId },
     });
@@ -29,6 +26,11 @@ export class NotificationService {
         role: "DRIVER",
         Order: {
           outletId: employee.outletId,
+        },
+        NOT: {
+          readByUserIds: {
+            has: authUserId,
+          },
         },
       },
       take: 5,
@@ -46,10 +48,14 @@ export class NotificationService {
       },
     });
 
-    return notifications;
+    return { data: notifications };
   };
 
-  getUserNotification = async (authUserId: number, limit: number, page: number) => {
+  getUserNotification = async (
+    authUserId: number,
+    limit: number,
+    page: number,
+  ) => {
     const user = await this.prisma.user.findFirst({
       where: { id: authUserId },
     });
