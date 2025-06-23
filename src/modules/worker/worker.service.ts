@@ -345,6 +345,12 @@ export class WorkerService {
         });
       }
       if (nextStatus === OrderStatus.READY_FOR_DELIVERY) {
+        await tx.deliveryJob.create({
+          data: {
+            orderId: order.uuid,
+            employeeId: null,
+          },
+        });
         await tx.notification.create({
           data: {
             orderId: order.uuid,
@@ -352,12 +358,6 @@ export class WorkerService {
             notifType: NotifType.NEW_DELIVERY_REQUEST,
             orderStatus: nextStatus,
             role: Role.DRIVER,
-          },
-        });
-        await tx.deliveryJob.create({
-          data: {
-            orderId: order.uuid,
-            employeeId: null,
           },
         });
       }

@@ -1,5 +1,5 @@
 import { DriverTaskStatus, OrderStatus, Prisma, Role } from "@prisma/client";
-import { customAlphabet } from "nanoid";
+import { customAlphabet, nanoid } from "nanoid";
 import { injectable } from "tsyringe";
 import { ApiError } from "../../utils/api-error";
 import { DistanceCalculator } from "../../utils/distance.calculator";

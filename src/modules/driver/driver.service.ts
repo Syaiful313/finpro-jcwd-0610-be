@@ -330,6 +330,41 @@ export class DriverService {
     return activeJob;
   };
 
+  public getJobHistoryDetail = async (
+    authUserId: number,
+    jobId: number,
+    jobType: "pickup" | "delivery",
+  ) => {
+    const employee = await this._getAndValidateDriver(authUserId, false);
+
+    const modelName = jobType === "pickup" ? "pickUpJob" : "deliveryJob";
+    const photoField = jobType === "pickup" ? "pickUpPhotos" : "deliveryPhotos";
+
+    const job = await (this.prisma[modelName] as any).findFirst({
+      where: {
+        id: jobId,
+        employeeId: employee.id,
+        status: DriverTaskStatus.COMPLETED,
+      },
+      include: this._getJobOrderInclude(),
+    });
+
+    if (!job) {
+      throw new ApiError(
+        "Job history not found or not completed by this driver",
+        404,
+      );
+    }
+
+    return {
+      type: jobType,
+      job: {
+        ...job,
+        photos: job[photoField],
+      },
+    };
+  };
+
   public claimPickUpRequest = (authUserId: number, pickUpJobId: number) =>
     this._claimJob(authUserId, pickUpJobId, "pickup");
   public claimDeliveryRequest = (authUserId: number, deliveryJobId: number) =>
@@ -346,6 +381,7 @@ export class DriverService {
     body: Partial<CompletePickupDto>,
     pickUpPhotos: Express.Multer.File,
   ) => this._completeJob(authUserId, pickupJobId, "pickup", body, pickUpPhotos);
+
   public completeDelivery = (
     authUserId: number,
     deliveryJobId: number,

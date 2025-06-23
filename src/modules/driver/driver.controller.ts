@@ -45,7 +45,7 @@ export class DriverController {
       }
 
       const result = await this.driverService.getAvailableRequests(
-        Number(authUserId), // req.user?.id,
+        Number(authUserId),
         query,
         requestType as "pickup" | "delivery" | "all",
       );
@@ -64,7 +64,7 @@ export class DriverController {
       const authUserId = req.user?.id;
       const { pickUpJobId } = req.params;
       const result = await this.driverService.claimPickUpRequest(
-        Number(authUserId), // req.user?.id,
+        Number(authUserId),
         Number(pickUpJobId),
       );
       res.status(200).send(result);
@@ -82,7 +82,7 @@ export class DriverController {
       const authUserId = req.user?.id;
       const { deliveryJobId } = req.params;
       const result = await this.driverService.claimDeliveryRequest(
-        Number(authUserId), // req.user?.id,
+        Number(authUserId),
         Number(deliveryJobId),
       );
       res.status(200).send(result);
@@ -96,7 +96,7 @@ export class DriverController {
       const authUserId = req.user?.id;
       const pickupJobId = parseInt(req.params.pickupJobId);
       const result = await this.driverService.startPickUp(
-        Number(authUserId), // req.user?.id,
+        Number(authUserId),
         pickupJobId,
       );
       res.status(200).send(result);
@@ -131,7 +131,7 @@ export class DriverController {
       const authUserId = req.user?.id;
       const { deliveryJobId } = req.params;
       const result = await this.driverService.startDelivery(
-        Number(authUserId), // req.user?.id,
+        Number(authUserId),
         Number(deliveryJobId),
       );
       res.status(200).send(result);
@@ -155,7 +155,7 @@ export class DriverController {
       const body = req.body as CompletePickupDto;
 
       const result = await this.driverService.completeDelivery(
-        Number(authUserId), // req.user?.id,
+        Number(authUserId),
         deliveryJobId,
         body,
         deliveryPhotos,
@@ -171,8 +171,27 @@ export class DriverController {
       const authUserId = req.user?.id;
       const { orderUuid } = req.params;
       const result = await this.driverService.getOrderDetail(
-        Number(authUserId), // req.user?.id,
+        Number(authUserId),
         orderUuid,
+      );
+      res.status(200).send(result);
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  getJobHistoryDetail = async (
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ) => {
+    try {
+      const authUserId = req.user?.id;
+      const { jobId, jobType } = req.params;
+      const result = await this.driverService.getJobHistoryDetail(
+        Number(authUserId),
+        Number(jobId),
+        jobType as "pickup" | "delivery",
       );
       res.status(200).send(result);
     } catch (error) {
