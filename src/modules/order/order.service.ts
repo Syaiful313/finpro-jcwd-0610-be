@@ -1090,12 +1090,21 @@ export class OrderService {
           });
         }
       }
-      
+
       await tx.notification.create({
         data: {
-          message: `Pesanan ${existingOrder.orderNumber} sedang diproses di ${existingOrder.outlet.outletName}`,
+          message: `🔥 Pesanan baru ${existingOrder.orderNumber} masuk di ${existingOrder.outlet.outletName}. Kerjakan sekarang!`,
           notifType: "ORDER_STARTED",
           role: "WORKER",
+          orderId: orderId,
+        },
+      });
+
+      await tx.notification.create({
+        data: {
+          message: `✨ Pesanan ${existingOrder.orderNumber} sudah dikonfirmasi! Barang siap, silakan bayar sekarang. 💳`,
+          notifType: "ORDER_STARTED",
+          role: "CUSTOMER",
           orderId: orderId,
         },
       });

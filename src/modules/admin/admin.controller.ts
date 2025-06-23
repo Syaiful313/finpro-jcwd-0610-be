@@ -1,5 +1,5 @@
-import { Role } from "@prisma/client";
 import { plainToInstance } from "class-transformer";
+import { validate } from "class-validator";
 import { NextFunction, Request, Response } from "express";
 import { injectable } from "tsyringe";
 import { ApiError } from "../../utils/api-error";
@@ -7,7 +7,6 @@ import { AdminService } from "./admin.service";
 import { CreateUserDTO } from "./dto/create-user.dto";
 import { GetUsersDTO } from "./dto/get-users.dto";
 import { UpdateUserDTO } from "./dto/update-user.dto";
-import { validate } from "class-validator";
 
 @injectable()
 export class AdminController {

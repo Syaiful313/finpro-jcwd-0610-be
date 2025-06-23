@@ -1,3 +1,4 @@
+import { PricingType } from "@prisma/client";
 import { Transform } from "class-transformer";
 import {
   IsBoolean,
@@ -10,7 +11,6 @@ import {
   Min,
   MinLength,
 } from "class-validator";
-import { PricingType } from "@prisma/client";
 
 export class CreateLaundryItemDTO {
   @IsNotEmpty()

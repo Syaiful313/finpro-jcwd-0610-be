@@ -342,7 +342,7 @@ export class AdminValidation {
     file: Express.Multer.File,
   ): Promise<void> => {
     const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/gif"];
-    const maxSize = 1 * 1024 * 1024; // 1MB
+    const maxSize = 1 * 1024 * 1024;
 
     if (!allowedTypes.includes(file.mimetype)) {
       throw new ApiError(
@@ -366,7 +366,6 @@ export class AdminValidation {
     }
   };
 
-  // Helper methods for role checking
   private isEmployeeRoleString(role: string): boolean {
     return role === "OUTLET_ADMIN" || role === "WORKER" || role === "DRIVER";
   }
