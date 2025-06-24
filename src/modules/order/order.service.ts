@@ -1178,6 +1178,10 @@ export class OrderService {
       closestOutlet.longitude,
     );
 
+    if (distanceKm > closestOutlet.serviceRadius) {
+      throw new ApiError(`Sorry, the location you chose exceeds our service area`, 402);
+    }
+
     let totalDeliveryFee = 0;
     if (distanceKm <= 1) {
       totalDeliveryFee = closestOutlet.deliveryBaseFee;
