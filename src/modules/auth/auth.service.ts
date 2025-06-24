@@ -51,7 +51,7 @@ export class AuthService {
     );
 
     if (!isPasswordValid) {
-      throw new ApiError("Invalid credentials", 400);
+      throw new ApiError("Incorrect password", 400);
     }
 
     let outletId: number | undefined;

@@ -1091,6 +1091,24 @@ export class OrderService {
         }
       }
 
+      await tx.notification.create({
+        data: {
+          message: `🔥 Pesanan baru ${existingOrder.orderNumber} masuk di ${existingOrder.outlet.outletName}. Kerjakan sekarang!`,
+          notifType: "ORDER_STARTED",
+          role: "WORKER",
+          orderId: orderId,
+        },
+      });
+
+      await tx.notification.create({
+        data: {
+          message: `✨ Pesanan ${existingOrder.orderNumber} sudah dikonfirmasi! Barang siap, silakan bayar sekarang. 💳`,
+          notifType: "ORDER_STARTED",
+          role: "CUSTOMER",
+          orderId: orderId,
+        },
+      });
+
       return updatedOrder;
     });
   };
@@ -1178,13 +1196,21 @@ export class OrderService {
       closestOutlet.longitude,
     );
 
+    if (distanceKm > closestOutlet.serviceRadius) {
+      throw new ApiError(
+        `Sorry, the location you chose exceeds our service area`,
+        402,
+      );
+    }
+
     let totalDeliveryFee = 0;
     if (distanceKm <= 1) {
       totalDeliveryFee = closestOutlet.deliveryBaseFee;
     } else {
-      totalDeliveryFee =
+      totalDeliveryFee = Math.round(
         closestOutlet.deliveryBaseFee +
-        (distanceKm - 1) * closestOutlet.deliveryPerKm;
+          (distanceKm - 1) * closestOutlet.deliveryPerKm,
+      );
     }
 
     const nanoid = customAlphabet("0123456789", 6);

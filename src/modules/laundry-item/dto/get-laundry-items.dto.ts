@@ -1,6 +1,6 @@
+import { PricingType } from "@prisma/client";
 import { Transform } from "class-transformer";
 import { IsBoolean, IsEnum, IsOptional, IsString } from "class-validator";
-import { PricingType } from "@prisma/client";
 import { PaginationQueryParams } from "../../pagination/dto/pagination.dto";
 
 export class GetLaundryItemsDTO extends PaginationQueryParams {

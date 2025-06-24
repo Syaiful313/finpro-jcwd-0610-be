@@ -1,4 +1,3 @@
-// src/services/bypassService.ts
 import { BypassStatus, OrderStatus, Prisma } from "@prisma/client";
 import { injectable } from "tsyringe";
 import { ApiError } from "../../utils/api-error";
@@ -18,18 +17,15 @@ export class BypassService {
     const { page, take, sortBy, sortOrder, all, status, workerType } = dto;
 
     const whereClause: Prisma.BypassRequestWhereInput = {
-      // CRITICAL: Only bypass requests for this outlet admin's outlet
       approvedByEmployee: {
         outletId: outletId,
       },
     };
 
-    // Filter by status if provided
     if (status) {
       whereClause.bypassStatus = status;
     }
 
-    // Filter by worker type through orderWorkProcesses
     if (workerType) {
       whereClause.orderWorkProcesses = {
         some: {
@@ -114,7 +110,7 @@ export class BypassService {
   getBypassRequestDetail = async (id: number, outletId: number) => {
     const whereClause: Prisma.BypassRequestWhereInput = {
       id,
-      // CRITICAL: Only allow access to own outlet's bypass requests
+
       approvedByEmployee: {
         outletId: outletId,
       },
@@ -188,14 +184,12 @@ export class BypassService {
     outletId: number,
   ) => {
     return await this.prisma.$transaction(async (tx) => {
-      // Validate bypass request ownership
       const bypassRequest = await this.validateBypassRequestOwnership(
         id,
         outletId,
         tx,
       );
 
-      // Update bypass request status
       const updatedBypassRequest = await tx.bypassRequest.update({
         where: { id },
         data: {
@@ -212,7 +206,6 @@ export class BypassService {
         },
       });
 
-      // Move order to next station
       for (const workProcess of updatedBypassRequest.orderWorkProcesses) {
         await this.moveOrderToNextStation(workProcess.orderId, tx);
       }
@@ -228,14 +221,12 @@ export class BypassService {
     outletId: number,
   ) => {
     return await this.prisma.$transaction(async (tx) => {
-      // Validate bypass request ownership
       const bypassRequest = await this.validateBypassRequestOwnership(
         id,
         outletId,
         tx,
       );
 
-      // Update bypass request status
       const updatedBypassRequest = await tx.bypassRequest.update({
         where: { id },
         data: {
@@ -252,7 +243,6 @@ export class BypassService {
         },
       });
 
-      // Reset worker station input - remove the work process that was rejected
       for (const workProcess of updatedBypassRequest.orderWorkProcesses) {
         await tx.orderWorkProcess.delete({
           where: { id: workProcess.id },
@@ -273,7 +263,7 @@ export class BypassService {
     const whereClause: Prisma.BypassRequestWhereInput = {
       id,
       bypassStatus: BypassStatus.PENDING,
-      // CRITICAL: Ensure outlet admin can only access their own outlet's requests
+
       approvedByEmployee: {
         outletId: outletId,
       },
@@ -320,7 +310,6 @@ export class BypassService {
     const currentStatus = order.orderStatus;
     let nextStatus: OrderStatus;
 
-    // Determine next status based on current status
     switch (currentStatus) {
       case OrderStatus.BEING_WASHED:
         nextStatus = OrderStatus.BEING_IRONED;
@@ -329,7 +318,6 @@ export class BypassService {
         nextStatus = OrderStatus.BEING_PACKED;
         break;
       case OrderStatus.BEING_PACKED:
-        // Check if payment is completed
         if (order.paymentStatus === "PAID") {
           nextStatus = OrderStatus.READY_FOR_DELIVERY;
         } else {
@@ -343,7 +331,6 @@ export class BypassService {
         );
     }
 
-    // Update order status
     await tx.order.update({
       where: { uuid: orderId },
       data: {
@@ -355,7 +342,6 @@ export class BypassService {
 
   getBypassRequestStats = async (outletId: number) => {
     const whereClause: Prisma.BypassRequestWhereInput = {
-      // CRITICAL: Only stats for this outlet admin's outlet
       approvedByEmployee: {
         outletId: outletId,
       },

@@ -1,11 +1,11 @@
 import { plainToInstance } from "class-transformer";
 import { NextFunction, Request, Response } from "express";
 import { injectable } from "tsyringe";
-import { GetLaundryItemsDTO } from "./dto/get-laundry-items.dto";
-import { LaundryItemService } from "./laundry-item.service";
-import { CreateLaundryItemDTO } from "./dto/create-loundry-item.dto";
-import { UpdateLaundryItemDTO } from "./dto/update-laundry-item.dto";
 import { ApiError } from "../../utils/api-error";
+import { CreateLaundryItemDTO } from "./dto/create-loundry-item.dto";
+import { GetLaundryItemsDTO } from "./dto/get-laundry-items.dto";
+import { UpdateLaundryItemDTO } from "./dto/update-laundry-item.dto";
+import { LaundryItemService } from "./laundry-item.service";
 
 @injectable()
 export class LaundryItemController {

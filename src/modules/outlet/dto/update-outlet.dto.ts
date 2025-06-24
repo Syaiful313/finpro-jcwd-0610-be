@@ -9,7 +9,6 @@ import {
   MinLength,
 } from "class-validator";
 
-// ✅ Interface version
 export interface UpdateOutletDTO {
   outletName?: string;
   address?: string;
@@ -19,7 +18,6 @@ export interface UpdateOutletDTO {
   isActive?: boolean | string;
 }
 
-// ✅ Class-validator version - Enhanced
 export class UpdateOutletDTO {
   @IsOptional()
   @IsString()
