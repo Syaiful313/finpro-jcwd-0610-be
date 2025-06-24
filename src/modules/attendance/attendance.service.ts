@@ -169,8 +169,42 @@ export class AttendanceService {
       include: { employees: true },
     });
 
-    if (!user || user.employees.length === 0) {
-      throw new ApiError("Employee not found for the current user", 404);
+    if (!user) {
+      throw new ApiError("User not found", 404);
+    }
+
+    // Check if user has valid role for attendance access
+    const allowedRoles = [
+      Role.ADMIN,
+      Role.OUTLET_ADMIN,
+      Role.DRIVER,
+      Role.WORKER,
+    ];
+    // Setelah checking allowedRoles.includes(user.role)
+    const userRole = user.role as
+      | "ADMIN"
+      | "OUTLET_ADMIN"
+      | "DRIVER"
+      | "WORKER";
+    if (!allowedRoles.includes(userRole)) {
+      throw new ApiError(
+        "Access denied. Invalid role for attendance access",
+        403,
+      );
+    }
+
+    // For non-employee users (those without employee record), handle differently
+    let employee = null;
+    if (user.employees.length > 0) {
+      employee = user.employees[0];
+    } else {
+      // Non-employee users (like pure ADMIN) can still access if they have admin roles
+      if (user.role !== Role.ADMIN && user.role !== Role.OUTLET_ADMIN) {
+        throw new ApiError(
+          "Access denied. Employee record required for this role",
+          403,
+        );
+      }
     }
 
     const validatedFilters = {

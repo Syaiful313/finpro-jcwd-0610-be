@@ -1219,6 +1219,7 @@ export class OrderService {
         message: `Request pickup for order ${newOrder.orderNumber}`,
         orderStatus: "WAITING_FOR_PICKUP",
         notifType: "NEW_PICKUP_REQUEST",
+        role: "DRIVER",
       },
     });
 
