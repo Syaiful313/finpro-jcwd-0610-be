@@ -1,6 +1,5 @@
-// dto/get-bypass-requests.dto.ts
-import { IsEnum, IsOptional } from "class-validator";
 import { BypassStatus, WorkerTypes } from "@prisma/client";
+import { IsEnum, IsOptional } from "class-validator";
 import { PaginationQueryParams } from "../../pagination/dto/pagination.dto";
 
 export class GetBypassRequestsDTO extends PaginationQueryParams {

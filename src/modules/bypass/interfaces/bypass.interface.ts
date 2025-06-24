@@ -1,4 +1,3 @@
-// interfaces/bypass.interface.ts
 export interface BypassRequestWithDetails {
   id: number;
   reason: string;

@@ -1,12 +1,11 @@
 import { plainToInstance } from "class-transformer";
-import { validate } from "class-validator";
 import { NextFunction, Request, Response } from "express";
 import { injectable } from "tsyringe";
-import { GetOutletsDTO } from "./dto/get-outlets.dto";
-import { OutletService } from "./outlet.service";
-import { CreateOutletDTO } from "./dto/create-outlet.dto";
-import { UpdateOutletDTO } from "./dto/update-outlet.dto";
 import { ApiError } from "../../utils/api-error";
+import { CreateOutletDTO } from "./dto/create-outlet.dto";
+import { GetOutletsDTO } from "./dto/get-outlets.dto";
+import { UpdateOutletDTO } from "./dto/update-outlet.dto";
+import { OutletService } from "./outlet.service";
 
 @injectable()
 export class OutletController {

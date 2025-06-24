@@ -1,4 +1,3 @@
-// src/controllers/bypassController.ts
 import { plainToInstance } from "class-transformer";
 import { validate } from "class-validator";
 import { NextFunction, Request, Response } from "express";
@@ -21,7 +20,6 @@ export class BypassController {
       const query = plainToInstance(GetBypassRequestsDTO, req.query);
       const user = (req as any).user;
 
-      // CRITICAL: Only OUTLET_ADMIN can access bypass requests
       if (user.role !== "OUTLET_ADMIN") {
         res.status(403).json({
           success: false,
@@ -31,7 +29,6 @@ export class BypassController {
         return;
       }
 
-      // CRITICAL: Must have outlet assignment
       const outletId = user.outletId;
       if (!outletId) {
         res.status(400).json({
@@ -41,7 +38,6 @@ export class BypassController {
         return;
       }
 
-      // Get bypass requests for this outlet only
       const result = await this.bypassService.getBypassRequests(
         query,
         outletId,
@@ -70,7 +66,6 @@ export class BypassController {
         throw new ApiError("Invalid bypass request ID", 400);
       }
 
-      // CRITICAL: Only OUTLET_ADMIN can access bypass requests
       if (user.role !== "OUTLET_ADMIN") {
         res.status(403).json({
           success: false,
@@ -80,7 +75,6 @@ export class BypassController {
         return;
       }
 
-      // CRITICAL: Must have outlet assignment
       const outletId = user.outletId;
       if (!outletId) {
         res.status(400).json({
@@ -90,7 +84,6 @@ export class BypassController {
         return;
       }
 
-      // Get bypass request detail for this outlet only
       const result = await this.bypassService.getBypassRequestDetail(
         id,
         outletId,
@@ -119,7 +112,6 @@ export class BypassController {
         throw new ApiError("Invalid bypass request ID", 400);
       }
 
-      // CRITICAL: Only OUTLET_ADMIN can process bypass requests
       if (user.role !== "OUTLET_ADMIN") {
         res.status(403).json({
           success: false,
@@ -129,12 +121,10 @@ export class BypassController {
         return;
       }
 
-      // CRITICAL: Must have employee info
       if (!user.employee?.id) {
         throw new ApiError("Employee information not found", 400);
       }
 
-      // CRITICAL: Must have outlet assignment
       const outletId = user.outletId;
       if (!outletId) {
         res.status(400).json({
@@ -154,7 +144,6 @@ export class BypassController {
         throw new ApiError(`Validation failed: ${errorMessages}`, 400);
       }
 
-      // Approve bypass request for this outlet only
       const result = await this.bypassService.approveBypassRequest(
         id,
         bodyDto,
@@ -185,7 +174,6 @@ export class BypassController {
         throw new ApiError("Invalid bypass request ID", 400);
       }
 
-      // CRITICAL: Only OUTLET_ADMIN can process bypass requests
       if (user.role !== "OUTLET_ADMIN") {
         res.status(403).json({
           success: false,
@@ -195,12 +183,10 @@ export class BypassController {
         return;
       }
 
-      // CRITICAL: Must have employee info
       if (!user.employee?.id) {
         throw new ApiError("Employee information not found", 400);
       }
 
-      // CRITICAL: Must have outlet assignment
       const outletId = user.outletId;
       if (!outletId) {
         res.status(400).json({
@@ -220,7 +206,6 @@ export class BypassController {
         throw new ApiError(`Validation failed: ${errorMessages}`, 400);
       }
 
-      // Reject bypass request for this outlet only
       const result = await this.bypassService.rejectBypassRequest(
         id,
         bodyDto,
@@ -246,7 +231,6 @@ export class BypassController {
     try {
       const user = (req as any).user;
 
-      // CRITICAL: Only OUTLET_ADMIN can access bypass stats
       if (user.role !== "OUTLET_ADMIN") {
         res.status(403).json({
           success: false,
@@ -256,7 +240,6 @@ export class BypassController {
         return;
       }
 
-      // CRITICAL: Must have outlet assignment
       const outletId = user.outletId;
       if (!outletId) {
         res.status(400).json({
@@ -266,7 +249,6 @@ export class BypassController {
         return;
       }
 
-      // Get stats for this outlet only
       const result = await this.bypassService.getBypassRequestStats(outletId);
 
       res.status(200).json({

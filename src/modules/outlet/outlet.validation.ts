@@ -13,7 +13,6 @@ export interface CurrentUser {
 export class OutletValidation {
   constructor(private readonly prisma: PrismaService) {}
 
-  // Optional: Additional validation method
   validateOutletExists = async (outletId: number) => {
     const outlet = await this.prisma.outlet.findUnique({
       where: { id: outletId },
@@ -30,7 +29,6 @@ export class OutletValidation {
     return outlet;
   };
 
-  // Optional: Business validation for outlet update
   validateOutletUpdateData = async (data: {
     outletId: number;
     outletName?: string;
@@ -39,7 +37,6 @@ export class OutletValidation {
   }) => {
     const { outletId, outletName, latitude, longitude } = data;
 
-    // Check for duplicate name
     if (outletName) {
       const existingOutletByName = await this.prisma.outlet.findFirst({
         where: {
@@ -58,9 +55,8 @@ export class OutletValidation {
       }
     }
 
-    // Check for nearby outlets (if location is being updated)
     if (latitude !== undefined && longitude !== undefined) {
-      const degreeOffset = 1 / 111; // approximately 1km
+      const degreeOffset = 1 / 111;
 
       const nearbyOutlets = await this.prisma.outlet.findMany({
         where: {
@@ -79,7 +75,7 @@ export class OutletValidation {
             },
             {
               id: {
-                not: outletId, // Exclude current outlet
+                not: outletId,
               },
             },
           ],
@@ -90,7 +86,6 @@ export class OutletValidation {
         console.warn(
           `Warning: Ada outlet lain dalam radius 1km dari lokasi yang dipilih`,
         );
-        // Note: Ini hanya warning, tidak throw error karena mungkin acceptable
       }
     }
   };
