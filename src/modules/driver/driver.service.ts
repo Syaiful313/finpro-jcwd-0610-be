@@ -534,8 +534,8 @@ export class DriverService {
 
     const notificationMessage =
       type === "pickup"
-        ? `Good news! Driver ${employee.user.firstName} ${employee.user.lastName} has been assigned to pick up your laundry for Order #${job.order.orderNumber}. You'll be notified when they're on the way!`
-        : `Excellent! Your clean laundry is ready for delivery! Driver ${employee.user.firstName} ${employee.user.lastName} has been assigned to deliver Order #${job.order.orderNumber}. You'll be notified when they're on the way!`;
+        ? `Good news! Driver ${employee.user.firstName} ${employee.user.lastName} has been assigned to pick up your laundry for Order ${job.order.orderNumber}. You'll be notified when they're on the way!`
+        : `Excellent! Your clean laundry is ready for delivery! Driver ${employee.user.firstName} ${employee.user.lastName} has been assigned to deliver Order ${job.order.orderNumber}. You'll be notified when they're on the way!`;
 
     return this.prisma.$transaction(async (tx) => {
       const updatedJob = await (tx[modelName] as any).update({
@@ -587,6 +587,21 @@ export class DriverService {
 
     if (!job) throw new ApiError("Job not found or not assigned to you", 404);
 
+    if (type === "pickup" && job.pickUpScheduleOutlet) {
+      const now = new Date();
+      const scheduleTime = new Date(job.pickUpScheduleOutlet);
+      const thirtyMinutesBefore = new Date(
+        scheduleTime.getTime() - 30 * 60 * 1000,
+      );
+
+      if (now < thirtyMinutesBefore) {
+        throw new ApiError(
+          "Pickup can only be started 30 minutes before scheduled time",
+          400,
+        );
+      }
+    }
+
     const orderStatus =
       type === "pickup"
         ? OrderStatus.DRIVER_ON_THE_WAY_TO_CUSTOMER
@@ -597,9 +612,9 @@ export class DriverService {
     const notificationMessages = {
       CUSTOMER:
         type === "pickup"
-          ? `Your driver ${employee.user.firstName} ${employee.user.lastName} is on the way to pick up your laundry! Order #${job.order.orderNumber}`
-          : `Great news! Your clean laundry is on the way! Driver ${employee.user.firstName} ${employee.user.lastName} is delivering Order #${job.order.orderNumber}`,
-      OUTLET_ADMIN: `Driver ${employee.user.firstName} ${employee.user.lastName} has started ${type} for Order #${job.order.orderNumber}`,
+          ? `Your driver ${employee.user.firstName} ${employee.user.lastName} is on the way to pick up your laundry! Order ${job.order.orderNumber}`
+          : `Great news! Your clean laundry is on the way! Driver ${employee.user.firstName} ${employee.user.lastName} is delivering Order ${job.order.orderNumber}`,
+      OUTLET_ADMIN: `Driver ${employee.user.firstName} ${employee.user.lastName} has started ${type} for Order ${job.order.orderNumber}`,
     };
 
     return this.prisma.$transaction(async (tx) => {
@@ -692,9 +707,9 @@ export class DriverService {
     const notificationMessages = {
       CUSTOMER:
         type === "pickup"
-          ? `Your laundry has been picked up successfully! Order #${job.order.orderNumber} is now on the way to our outlet for processing.`
-          : `Your laundry has been delivered successfully! Order #${job.order.orderNumber} has been completed.`,
-      OUTLET_ADMIN: `${type.charAt(0).toUpperCase() + type.slice(1)} task completed for Order #${job.order.orderNumber}. Driver: ${employee.user.firstName} ${employee.user.lastName}${type === "pickup" ? " is heading to outlet." : ""}`,
+          ? `Your laundry has been picked up successfully! Order ${job.order.orderNumber} is now on the way to our outlet for processing.`
+          : `Your laundry has been delivered successfully! Order ${job.order.orderNumber} has been completed.`,
+      OUTLET_ADMIN: `${type.charAt(0).toUpperCase() + type.slice(1)} task completed for Order ${job.order.orderNumber}. Driver: ${employee.user.firstName} ${employee.user.lastName}${type === "pickup" ? " is heading to outlet." : ""}`,
     };
 
     return this.prisma.$transaction(async (tx) => {
