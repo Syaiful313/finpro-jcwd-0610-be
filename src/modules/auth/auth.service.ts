@@ -1,19 +1,19 @@
+import { OAuth2Client } from "google-auth-library";
 import { injectable } from "tsyringe";
 import { env } from "../../config";
 import { ApiError } from "../../utils/api-error";
+import { MailService } from "../mail/mail.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { prismaExclude } from "../prisma/utils";
+import { ChangePasswordDTO } from "./dto/changePassword.dto";
+import { ForgotPasswordDTO } from "./dto/forgotPassword.dto";
+import { GoogleAuthDTO } from "./dto/googleAuth.dto";
 import { LoginDTO } from "./dto/login.dto";
 import { RegisterDTO } from "./dto/register.dto";
+import { ResetPasswordDTO } from "./dto/resetPassword.dto";
+import { VerificationDTO } from "./dto/verification.dto";
 import { PasswordService } from "./password.service";
 import { TokenService } from "./token.service";
-import { MailService } from "../mail/mail.service";
-import { VerificationDTO } from "./dto/verification.dto";
-import { GoogleAuthDTO } from "./dto/googleAuth.dto";
-import { auth, OAuth2Client } from "google-auth-library";
-import { ForgotPasswordDTO } from "./dto/forgotPassword.dto";
-import { ResetPasswordDTO } from "./dto/resetPassword.dto";
-import { ChangePasswordDTO } from "./dto/changePassword.dto";
 
 @injectable()
 export class AuthService {
@@ -170,7 +170,6 @@ export class AuthService {
 
   googleAuth = async (body: GoogleAuthDTO) => {
     const { tokenId } = body;
-    const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
     const ticket = await this.googleClient.verifyIdToken({
       idToken: tokenId,
@@ -188,11 +187,16 @@ export class AuthService {
     }
 
     const { email, name, picture } = payload;
-
     const [firstName, ...lastNameParts] = name.split(" ");
     const lastName = lastNameParts.join(" ") || "";
 
-    let user = await this.prisma.user.findUnique({ where: { email } });
+    let user = await this.prisma.user.findFirst({
+      where: {
+        email,
+        provider: "GOOGLE",
+        deletedAt: null,
+      },
+    });
 
     if (!user) {
       user = await this.prisma.user.create({
@@ -200,25 +204,36 @@ export class AuthService {
           email,
           firstName,
           lastName,
+          role: "CUSTOMER",
           profilePic: picture,
           provider: "GOOGLE",
           isVerified: true,
         },
       });
+    } else {
+      user = await this.prisma.user.update({
+        where: { id: user.id },
+        data: {
+          firstName,
+          lastName,
+          profilePic: picture,
+          isVerified: true,
+        },
+      });
     }
 
-    if (!process.env.JWT_SECRET) {
-      throw new Error("Missing JWT_SECRET env variable");
-    }
-     const token = this.tokenService.generateToken(
-      { userId: user.id },
-      process.env.JWT_SECRET!,
-      { expiresIn: "1h" },
+    const accessToken = this.tokenService.generateToken(
+      { id: user.id, role: user.role },
+      env().JWT_SECRET,
     );
 
-    return { user, token };
-  };
+    const { password: pw, ...userWithoutPassword } = user;
 
+    return {
+      ...userWithoutPassword,
+      accessToken,
+    };
+  };
   forgotPassword = async (body: ForgotPasswordDTO) => {
     const { email } = body;
     const existingUser = await this.prisma.user.findFirst({
@@ -230,7 +245,10 @@ export class AuthService {
     }
 
     if (existingUser.provider === "GOOGLE") {
-      throw new ApiError("This account uses Google Sign-In. Please login using Google", 400);
+      throw new ApiError(
+        "This account uses Google Sign-In. Please login using Google",
+        400,
+      );
     }
 
     const forgotPasswordPayload = {
@@ -262,7 +280,10 @@ export class AuthService {
     return existingUser;
   };
 
-  resetPassword = async (body: ResetPasswordDTO, resetPasswordToken: string) => {
+  resetPassword = async (
+    body: ResetPasswordDTO,
+    resetPasswordToken: string,
+  ) => {
     const { newPassword } = body;
     const existingUser = await this.prisma.user.findFirst({
       where: {
@@ -270,7 +291,7 @@ export class AuthService {
         resetPasswordTokenUsed: false,
       },
     });
-    
+
     if (!existingUser) {
       throw new ApiError("You have previously reset your password", 400);
     }
@@ -278,7 +299,7 @@ export class AuthService {
     const hashedPassword = await this.passwordService.hashPassword(newPassword);
 
     await this.prisma.user.update({
-      where: { id: existingUser.id , resetPasswordToken},
+      where: { id: existingUser.id, resetPasswordToken },
       data: {
         password: hashedPassword,
         resetPasswordTokenUsed: true,
