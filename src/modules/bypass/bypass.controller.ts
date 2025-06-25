@@ -3,13 +3,35 @@ import { validate } from "class-validator";
 import { NextFunction, Request, Response } from "express";
 import { injectable } from "tsyringe";
 import { ApiError } from "../../utils/api-error";
+import { PrismaService } from "../prisma/prisma.service";
 import { BypassService } from "./bypass.service";
 import { GetBypassRequestsDTO } from "./dto/get-bypass-requests.dto";
 import { ProcessBypassRequestDTO } from "./dto/process-bypass-request.dto";
 
+interface AuthenticatedUser {
+  id: number;
+  role: string;
+  outletId?: number;
+  employee?: {
+    id: number;
+    outletId: number;
+  };
+}
+
+declare global {
+  namespace Express {
+    interface Request {
+      user?: AuthenticatedUser;
+    }
+  }
+}
+
 @injectable()
 export class BypassController {
-  constructor(private readonly bypassService: BypassService) {}
+  constructor(
+    private readonly bypassService: BypassService,
+    private readonly prisma: PrismaService,
+  ) {}
 
   getBypassRequests = async (
     req: Request,
@@ -18,24 +40,11 @@ export class BypassController {
   ) => {
     try {
       const query = plainToInstance(GetBypassRequestsDTO, req.query);
-      const user = (req as any).user;
-
-      if (user.role !== "OUTLET_ADMIN") {
-        res.status(403).json({
-          success: false,
-          message:
-            "Access denied. Only outlet admins can manage bypass requests.",
-        });
-        return;
-      }
+      const user = req.user!;
 
       const outletId = user.outletId;
       if (!outletId) {
-        res.status(400).json({
-          success: false,
-          message: "Outlet admin must have outlet assignment",
-        });
-        return;
+        throw new ApiError("Outlet admin must have outlet assignment", 400);
       }
 
       const result = await this.bypassService.getBypassRequests(
@@ -60,28 +69,15 @@ export class BypassController {
   ) => {
     try {
       const id = Number(req.params.id);
-      const user = (req as any).user;
+      const user = req.user!;
 
       if (isNaN(id) || id <= 0) {
         throw new ApiError("Invalid bypass request ID", 400);
       }
 
-      if (user.role !== "OUTLET_ADMIN") {
-        res.status(403).json({
-          success: false,
-          message:
-            "Access denied. Only outlet admins can view bypass requests.",
-        });
-        return;
-      }
-
       const outletId = user.outletId;
       if (!outletId) {
-        res.status(400).json({
-          success: false,
-          message: "Outlet admin must have outlet assignment",
-        });
-        return;
+        throw new ApiError("Outlet admin must have outlet assignment", 400);
       }
 
       const result = await this.bypassService.getBypassRequestDetail(
@@ -112,19 +108,6 @@ export class BypassController {
         throw new ApiError("Invalid bypass request ID", 400);
       }
 
-      if (user.role !== "OUTLET_ADMIN") {
-        res.status(403).json({
-          success: false,
-          message:
-            "Access denied. Only outlet admins can approve bypass requests.",
-        });
-        return;
-      }
-
-      if (!user.employee?.id) {
-        throw new ApiError("Employee information not found", 400);
-      }
-
       const outletId = user.outletId;
       if (!outletId) {
         res.status(400).json({
@@ -132,6 +115,18 @@ export class BypassController {
           message: "Outlet admin must have outlet assignment",
         });
         return;
+      }
+
+      const employee = await this.prisma.employee.findFirst({
+        where: {
+          userId: user.id,
+          outletId: outletId,
+          deletedAt: null,
+        },
+      });
+
+      if (!employee) {
+        throw new ApiError("Employee information not found", 400);
       }
 
       const bodyDto = plainToInstance(ProcessBypassRequestDTO, req.body);
@@ -147,7 +142,7 @@ export class BypassController {
       const result = await this.bypassService.approveBypassRequest(
         id,
         bodyDto,
-        user.employee.id,
+        employee.id,
         outletId,
       );
 
@@ -174,19 +169,6 @@ export class BypassController {
         throw new ApiError("Invalid bypass request ID", 400);
       }
 
-      if (user.role !== "OUTLET_ADMIN") {
-        res.status(403).json({
-          success: false,
-          message:
-            "Access denied. Only outlet admins can reject bypass requests.",
-        });
-        return;
-      }
-
-      if (!user.employee?.id) {
-        throw new ApiError("Employee information not found", 400);
-      }
-
       const outletId = user.outletId;
       if (!outletId) {
         res.status(400).json({
@@ -194,6 +176,18 @@ export class BypassController {
           message: "Outlet admin must have outlet assignment",
         });
         return;
+      }
+
+      const employee = await this.prisma.employee.findFirst({
+        where: {
+          userId: user.id,
+          outletId: outletId,
+          deletedAt: null,
+        },
+      });
+
+      if (!employee) {
+        throw new ApiError("Employee information not found", 400);
       }
 
       const bodyDto = plainToInstance(ProcessBypassRequestDTO, req.body);
@@ -209,7 +203,7 @@ export class BypassController {
       const result = await this.bypassService.rejectBypassRequest(
         id,
         bodyDto,
-        user.employee.id,
+        employee.id,
         outletId,
       );
 
@@ -229,24 +223,11 @@ export class BypassController {
     next: NextFunction,
   ) => {
     try {
-      const user = (req as any).user;
-
-      if (user.role !== "OUTLET_ADMIN") {
-        res.status(403).json({
-          success: false,
-          message:
-            "Access denied. Only outlet admins can view bypass statistics.",
-        });
-        return;
-      }
+      const user = req.user!;
 
       const outletId = user.outletId;
       if (!outletId) {
-        res.status(400).json({
-          success: false,
-          message: "Outlet admin must have outlet assignment",
-        });
-        return;
+        throw new ApiError("Outlet admin must have outlet assignment", 400);
       }
 
       const result = await this.bypassService.getBypassRequestStats(outletId);

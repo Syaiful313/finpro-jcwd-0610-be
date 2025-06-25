@@ -1,4 +1,4 @@
-import { BypassStatus, OrderStatus, Prisma } from "@prisma/client";
+import { BypassStatus, OrderStatus, Prisma, WorkerTypes } from "@prisma/client";
 import { injectable } from "tsyringe";
 import { ApiError } from "../../utils/api-error";
 import { PaginationService } from "../pagination/pagination.service";
@@ -17,8 +17,12 @@ export class BypassService {
     const { page, take, sortBy, sortOrder, all, status, workerType } = dto;
 
     const whereClause: Prisma.BypassRequestWhereInput = {
-      approvedByEmployee: {
-        outletId: outletId,
+      orderWorkProcesses: {
+        some: {
+          employee: {
+            outletId: outletId,
+          },
+        },
       },
     };
 
@@ -30,6 +34,9 @@ export class BypassService {
       whereClause.orderWorkProcesses = {
         some: {
           workerType: workerType,
+          employee: {
+            outletId: outletId,
+          },
         },
       };
     }
@@ -111,8 +118,12 @@ export class BypassService {
     const whereClause: Prisma.BypassRequestWhereInput = {
       id,
 
-      approvedByEmployee: {
-        outletId: outletId,
+      orderWorkProcesses: {
+        some: {
+          employee: {
+            outletId: outletId,
+          },
+        },
       },
     };
 
@@ -184,17 +195,14 @@ export class BypassService {
     outletId: number,
   ) => {
     return await this.prisma.$transaction(async (tx) => {
-      const bypassRequest = await this.validateBypassRequestOwnership(
-        id,
-        outletId,
-        tx,
-      );
+      await this.validateBypassRequestOwnership(id, outletId, tx);
 
       const updatedBypassRequest = await tx.bypassRequest.update({
         where: { id },
         data: {
           bypassStatus: BypassStatus.APPROVED,
           adminNote: dto.adminNote,
+          approvedBy: adminEmployeeId,
           updatedAt: new Date(),
         },
         include: {
@@ -221,17 +229,14 @@ export class BypassService {
     outletId: number,
   ) => {
     return await this.prisma.$transaction(async (tx) => {
-      const bypassRequest = await this.validateBypassRequestOwnership(
-        id,
-        outletId,
-        tx,
-      );
+      await this.validateBypassRequestOwnership(id, outletId, tx);
 
       const updatedBypassRequest = await tx.bypassRequest.update({
         where: { id },
         data: {
           bypassStatus: BypassStatus.REJECTED,
           adminNote: dto.adminNote,
+          approvedBy: adminEmployeeId,
           updatedAt: new Date(),
         },
         include: {
@@ -247,6 +252,12 @@ export class BypassService {
         await tx.orderWorkProcess.delete({
           where: { id: workProcess.id },
         });
+
+        await this.revertOrderStatus(
+          workProcess.orderId,
+          workProcess.workerType,
+          tx,
+        );
       }
 
       return updatedBypassRequest;
@@ -257,27 +268,24 @@ export class BypassService {
     id: number,
     outletId: number,
     tx?: Prisma.TransactionClient,
-  ) => {
+  ): Promise<void> => {
     const client = tx || this.prisma;
 
     const whereClause: Prisma.BypassRequestWhereInput = {
       id,
       bypassStatus: BypassStatus.PENDING,
 
-      approvedByEmployee: {
-        outletId: outletId,
+      orderWorkProcesses: {
+        some: {
+          employee: {
+            outletId: outletId,
+          },
+        },
       },
     };
 
     const bypassRequest = await client.bypassRequest.findFirst({
       where: whereClause,
-      include: {
-        orderWorkProcesses: {
-          include: {
-            order: true,
-          },
-        },
-      },
     });
 
     if (!bypassRequest) {
@@ -286,8 +294,6 @@ export class BypassService {
         404,
       );
     }
-
-    return bypassRequest;
   };
 
   private moveOrderToNextStation = async (
@@ -296,11 +302,6 @@ export class BypassService {
   ) => {
     const order = await tx.order.findUnique({
       where: { uuid: orderId },
-      include: {
-        orderWorkProcess: {
-          orderBy: { createdAt: "desc" },
-        },
-      },
     });
 
     if (!order) {
@@ -340,10 +341,55 @@ export class BypassService {
     });
   };
 
+  private revertOrderStatus = async (
+    orderId: string,
+    workerType: WorkerTypes,
+    tx: Prisma.TransactionClient,
+  ) => {
+    const order = await tx.order.findUnique({
+      where: { uuid: orderId },
+    });
+
+    if (!order) {
+      throw new ApiError("Order not found", 404);
+    }
+
+    let revertedStatus: OrderStatus;
+
+    switch (workerType) {
+      case WorkerTypes.WASHING:
+        revertedStatus = OrderStatus.ARRIVED_AT_OUTLET;
+        break;
+      case WorkerTypes.IRONING:
+        revertedStatus = OrderStatus.BEING_WASHED;
+        break;
+      case WorkerTypes.PACKING:
+        revertedStatus = OrderStatus.BEING_IRONED;
+        break;
+      default:
+        throw new ApiError(
+          `Cannot revert order status for worker type: ${workerType}`,
+          400,
+        );
+    }
+
+    await tx.order.update({
+      where: { uuid: orderId },
+      data: {
+        orderStatus: revertedStatus,
+        updatedAt: new Date(),
+      },
+    });
+  };
+
   getBypassRequestStats = async (outletId: number) => {
     const whereClause: Prisma.BypassRequestWhereInput = {
-      approvedByEmployee: {
-        outletId: outletId,
+      orderWorkProcesses: {
+        some: {
+          employee: {
+            outletId: outletId,
+          },
+        },
       },
     };
 

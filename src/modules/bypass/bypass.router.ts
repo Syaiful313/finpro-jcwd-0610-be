@@ -38,14 +38,14 @@ export class BypassRouter {
       this.bypassController.getBypassRequestDetail,
     );
 
-    this.router.post(
+    this.router.patch(
       "/:id/approve",
       this.jwtMiddleware.verifyToken(env().JWT_SECRET),
       verifyRole(["OUTLET_ADMIN"]),
       this.bypassController.approveBypassRequest,
     );
 
-    this.router.post(
+    this.router.patch(
       "/:id/reject",
       this.jwtMiddleware.verifyToken(env().JWT_SECRET),
       verifyRole(["OUTLET_ADMIN"]),

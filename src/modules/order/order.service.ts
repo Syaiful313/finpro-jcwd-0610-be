@@ -2,7 +2,6 @@ import { DriverTaskStatus, OrderStatus, Prisma, Role } from "@prisma/client";
 import { customAlphabet } from "nanoid";
 import { injectable } from "tsyringe";
 import { ApiError } from "../../utils/api-error";
-import { DistanceCalculator } from "../../utils/distance.calculator";
 import { haversine } from "../../utils/haversine-distance";
 import { PaginationService } from "../pagination/pagination.service";
 import { PrismaService } from "../prisma/prisma.service";
@@ -92,7 +91,7 @@ export class OrderService {
       page = 1,
       take = 10,
       sortBy = "createdAt",
-      sortOrder = "asc",
+      sortOrder = "desc",
     } = query;
     const userOutlet = await this.getUserOutlet(currentUser.id);
     const whereClause = this.buildPendingOrdersWhereClause(
@@ -134,8 +133,11 @@ export class OrderService {
       orderId,
       userOutlet.outletId,
     );
-    const totalDeliveryFee =
-      await this.calculateOrderDeliveryFee(existingOrder);
+    const totalDeliveryFee = existingOrder.totalDeliveryFee || 0;
+
+    if (!existingOrder.totalDeliveryFee) {
+      throw new ApiError("Delivery fee belum dikalkulasi untuk order ini", 400);
+    }
     const { processedItems, calculatedTotalPrice } =
       await this.processOrderItems(orderItems);
 
@@ -313,17 +315,6 @@ export class OrderService {
     }
   };
 
-  private validateEmployee = async (employeeId: number): Promise<void> => {
-    const employee = await this.prisma.employee.findUnique({
-      where: { id: employeeId },
-      select: { id: true },
-    });
-
-    if (!employee) {
-      throw new ApiError(OrderService.ERROR_MESSAGES.EMPLOYEE_NOT_FOUND, 404);
-    }
-  };
-
   private buildOrdersWhereClause = async (
     query: GetOrdersDTO,
     currentUser: CurrentUser,
@@ -372,6 +363,9 @@ export class OrderService {
       outletId,
       orderStatus: OrderStatus.ARRIVED_AT_OUTLET,
       user: { deletedAt: null },
+      orderItems: {
+        none: {},
+      },
     };
 
     const andConditions: Prisma.OrderWhereInput[] = [];
@@ -887,71 +881,6 @@ export class OrderService {
     });
   };
 
-  private calculateOrderDeliveryFee = async (
-    existingOrder: any,
-  ): Promise<number> => {
-    try {
-      const customerCoordinates = await this.getCustomerCoordinates(
-        existingOrder.userId,
-      );
-
-      if (customerCoordinates) {
-        const distance = DistanceCalculator.calculateDistance(
-          existingOrder.outlet.latitude,
-          existingOrder.outlet.longitude,
-          customerCoordinates.latitude,
-          customerCoordinates.longitude,
-        );
-
-        const deliveryFee = DistanceCalculator.calculateDeliveryFee(distance, {
-          deliveryBaseFee: existingOrder.outlet.deliveryBaseFee,
-          deliveryPerKm: existingOrder.outlet.deliveryPerKm,
-          serviceRadius: existingOrder.outlet.serviceRadius,
-        });
-
-        console.log(
-          `📍 Distance: ${distance}km, Delivery Fee: Rp ${deliveryFee.toLocaleString()}`,
-        );
-        return deliveryFee;
-      } else {
-        console.log(
-          `⚠️  No customer coordinates found, using base delivery fee: Rp ${existingOrder.outlet.deliveryBaseFee.toLocaleString()}`,
-        );
-        return existingOrder.outlet.deliveryBaseFee;
-      }
-    } catch (error) {
-      if (
-        error instanceof Error &&
-        error.message.includes("jangkauan layanan")
-      ) {
-        throw new ApiError(error.message, 400);
-      }
-
-      console.log(
-        `⚠️  Distance calculation failed, using base delivery fee: Rp ${existingOrder.outlet.deliveryBaseFee.toLocaleString()}`,
-      );
-      return existingOrder.outlet.deliveryBaseFee;
-    }
-  };
-
-  private getCustomerCoordinates = async (
-    userId: number,
-  ): Promise<{ latitude: number; longitude: number } | null> => {
-    const primaryAddress = await this.prisma.address.findFirst({
-      where: { userId, isPrimary: true },
-      select: { latitude: true, longitude: true },
-    });
-
-    if (primaryAddress) return primaryAddress;
-
-    const anyAddress = await this.prisma.address.findFirst({
-      where: { userId },
-      select: { latitude: true, longitude: true },
-    });
-
-    return anyAddress;
-  };
-
   private processOrderItems = async (
     orderItems: any[],
   ): Promise<{ processedItems: any[]; calculatedTotalPrice: number }> => {
@@ -1197,7 +1126,10 @@ export class OrderService {
     );
 
     if (distanceKm > closestOutlet.serviceRadius) {
-      throw new ApiError(`Sorry, the location you chose exceeds our service area`, 402);
+      throw new ApiError(
+        `Sorry, the location you chose exceeds our service area`,
+        402,
+      );
     }
 
     let totalDeliveryFee = 0;
