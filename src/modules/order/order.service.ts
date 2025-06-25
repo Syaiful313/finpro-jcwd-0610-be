@@ -1136,9 +1136,10 @@ export class OrderService {
     if (distanceKm <= 1) {
       totalDeliveryFee = closestOutlet.deliveryBaseFee;
     } else {
-      totalDeliveryFee =
+      totalDeliveryFee = Math.round(
         closestOutlet.deliveryBaseFee +
-        (distanceKm - 1) * closestOutlet.deliveryPerKm;
+          (distanceKm - 1) * closestOutlet.deliveryPerKm,
+      );
     }
 
     const nanoid = customAlphabet("0123456789", 6);
@@ -1173,6 +1174,7 @@ export class OrderService {
         message: `Request pickup for order ${newOrder.orderNumber}`,
         orderStatus: "WAITING_FOR_PICKUP",
         notifType: "NEW_PICKUP_REQUEST",
+        role: "DRIVER",
       },
     });
 
