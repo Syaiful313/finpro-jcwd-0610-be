@@ -587,21 +587,6 @@ export class DriverService {
 
     if (!job) throw new ApiError("Job not found or not assigned to you", 404);
 
-    if (type === "pickup" && job.pickUpScheduleOutlet) {
-      const now = new Date();
-      const scheduleTime = new Date(job.pickUpScheduleOutlet);
-      const thirtyMinutesBefore = new Date(
-        scheduleTime.getTime() - 30 * 60 * 1000,
-      );
-
-      if (now < thirtyMinutesBefore) {
-        throw new ApiError(
-          "Pickup can only be started 30 minutes before scheduled time",
-          400,
-        );
-      }
-    }
-
     const orderStatus =
       type === "pickup"
         ? OrderStatus.DRIVER_ON_THE_WAY_TO_CUSTOMER
