@@ -26,22 +26,22 @@ export class DistanceCalculator {
     return degrees * (Math.PI / 180);
   }
 
-  static calculateDeliveryFee(
-    distance: number,
-    outlet: {
-      deliveryBaseFee: number;
-      deliveryPerKm: number;
-      serviceRadius: number;
-    },
-  ): number {
-    if (distance > outlet.serviceRadius) {
-      throw new Error(
-        `Alamat diluar jangkauan layanan. Maksimal ${outlet.serviceRadius}km`,
-      );
-    }
+  // static calculateDeliveryFee(
+  //   distance: number,
+  //   outlet: {
+  //     deliveryBaseFee: number;
+  //     deliveryPerKm: number;
+  //     serviceRadius: number;
+  //   },
+  // ): number {
+  //   if (distance > outlet.serviceRadius) {
+  //     throw new Error(
+  //       `Alamat diluar jangkauan layanan. Maksimal ${outlet.serviceRadius}km`,
+  //     );
+  //   }
 
-    const deliveryFee =
-      outlet.deliveryBaseFee + distance * outlet.deliveryPerKm;
-    return Math.round(deliveryFee);
-  }
+  //   const deliveryFee =
+  //     outlet.deliveryBaseFee + distance * outlet.deliveryPerKm;
+  //   return Math.round(deliveryFee);
+  // }
 }
