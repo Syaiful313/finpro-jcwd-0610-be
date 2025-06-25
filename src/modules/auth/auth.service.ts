@@ -200,6 +200,7 @@ export class AuthService {
           email,
           firstName,
           lastName,
+          role: "CUSTOMER",
           profilePic: picture,
           provider: "GOOGLE",
           isVerified: true,
