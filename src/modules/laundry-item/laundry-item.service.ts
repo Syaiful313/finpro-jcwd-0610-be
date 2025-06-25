@@ -197,7 +197,7 @@ export class LaundryItemService {
 
     if (pricingType !== undefined) {
       if (pricingType === "PER_KG") {
-        updateData.basePrice = 0;
+        updateData.basePrice = 5000;
       } else if (pricingType === "PER_PIECE" && basePrice !== undefined) {
         updateData.basePrice = basePrice;
       }

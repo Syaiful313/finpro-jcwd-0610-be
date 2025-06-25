@@ -374,43 +374,16 @@ export class OrderTransformerService {
   private calculateDetailedDeliveryInfo(
     order: any,
   ): DeliveryCalculationInfo | null {
-    const primaryAddress =
-      order.user.addresses.find((addr: any) => addr.isPrimary) ||
-      order.user.addresses[0];
+    if (!order.outlet) return null;
 
-    if (!primaryAddress || !order.outlet) return null;
-
-    try {
-      const { DistanceCalculator } = require("../../utils/distance.calculator");
-
-      const distance = DistanceCalculator.calculateDistance(
-        order.outlet.latitude,
-        order.outlet.longitude,
-        primaryAddress.latitude,
-        primaryAddress.longitude,
-      );
-
-      const calculatedDeliveryFee = DistanceCalculator.calculateDeliveryFee(
-        distance,
-        {
-          deliveryBaseFee: order.outlet.deliveryBaseFee,
-          deliveryPerKm: order.outlet.deliveryPerKm,
-          serviceRadius: order.outlet.serviceRadius,
-        },
-      );
-
-      return {
-        distance: parseFloat(distance.toFixed(2)),
-        calculatedFee: calculatedDeliveryFee,
-        actualFee: order.totalDeliveryFee,
-        baseFee: order.outlet.deliveryBaseFee,
-        perKmFee: order.outlet.deliveryPerKm,
-        withinServiceRadius: distance <= order.outlet.serviceRadius,
-      };
-    } catch (error) {
-      console.warn("Failed to calculate delivery info:", error);
-      return null;
-    }
+    return {
+      calculatedFee: order.totalDeliveryFee,
+      actualFee: order.totalDeliveryFee,
+      baseFee: order.outlet.deliveryBaseFee,
+      perKmFee: order.outlet.deliveryPerKm,
+      distance: order.deliveryDistance ?? 0,
+      withinServiceRadius: order.withinServiceRadius ?? true,
+    };
   }
 
   private buildOrderTracking(
