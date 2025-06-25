@@ -212,7 +212,7 @@ export class AuthService {
       throw new Error("Missing JWT_SECRET env variable");
     }
     const token = this.tokenService.generateToken(
-      { userId: user.id },
+      { id: user.id },
       process.env.JWT_SECRET!,
       { expiresIn: "1h" },
     );
