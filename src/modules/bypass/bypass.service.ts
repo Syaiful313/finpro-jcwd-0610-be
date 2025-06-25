@@ -1,4 +1,4 @@
-import { BypassStatus, OrderStatus, Prisma, WorkerTypes } from "@prisma/client";
+import { BypassStatus, Prisma } from "@prisma/client";
 import { injectable } from "tsyringe";
 import { ApiError } from "../../utils/api-error";
 import { PaginationService } from "../pagination/pagination.service";
@@ -117,7 +117,6 @@ export class BypassService {
   getBypassRequestDetail = async (id: number, outletId: number) => {
     const whereClause: Prisma.BypassRequestWhereInput = {
       id,
-
       orderWorkProcesses: {
         some: {
           employee: {
@@ -214,10 +213,6 @@ export class BypassService {
         },
       });
 
-      for (const workProcess of updatedBypassRequest.orderWorkProcesses) {
-        await this.moveOrderToNextStation(workProcess.orderId, tx);
-      }
-
       return updatedBypassRequest;
     });
   };
@@ -248,18 +243,6 @@ export class BypassService {
         },
       });
 
-      for (const workProcess of updatedBypassRequest.orderWorkProcesses) {
-        await tx.orderWorkProcess.delete({
-          where: { id: workProcess.id },
-        });
-
-        await this.revertOrderStatus(
-          workProcess.orderId,
-          workProcess.workerType,
-          tx,
-        );
-      }
-
       return updatedBypassRequest;
     });
   };
@@ -274,7 +257,6 @@ export class BypassService {
     const whereClause: Prisma.BypassRequestWhereInput = {
       id,
       bypassStatus: BypassStatus.PENDING,
-
       orderWorkProcesses: {
         some: {
           employee: {
@@ -294,92 +276,6 @@ export class BypassService {
         404,
       );
     }
-  };
-
-  private moveOrderToNextStation = async (
-    orderId: string,
-    tx: Prisma.TransactionClient,
-  ) => {
-    const order = await tx.order.findUnique({
-      where: { uuid: orderId },
-    });
-
-    if (!order) {
-      throw new ApiError("Order not found", 404);
-    }
-
-    const currentStatus = order.orderStatus;
-    let nextStatus: OrderStatus;
-
-    switch (currentStatus) {
-      case OrderStatus.BEING_WASHED:
-        nextStatus = OrderStatus.BEING_IRONED;
-        break;
-      case OrderStatus.BEING_IRONED:
-        nextStatus = OrderStatus.BEING_PACKED;
-        break;
-      case OrderStatus.BEING_PACKED:
-        if (order.paymentStatus === "PAID") {
-          nextStatus = OrderStatus.READY_FOR_DELIVERY;
-        } else {
-          nextStatus = OrderStatus.WAITING_PAYMENT;
-        }
-        break;
-      default:
-        throw new ApiError(
-          `Cannot move order from status: ${currentStatus}`,
-          400,
-        );
-    }
-
-    await tx.order.update({
-      where: { uuid: orderId },
-      data: {
-        orderStatus: nextStatus,
-        updatedAt: new Date(),
-      },
-    });
-  };
-
-  private revertOrderStatus = async (
-    orderId: string,
-    workerType: WorkerTypes,
-    tx: Prisma.TransactionClient,
-  ) => {
-    const order = await tx.order.findUnique({
-      where: { uuid: orderId },
-    });
-
-    if (!order) {
-      throw new ApiError("Order not found", 404);
-    }
-
-    let revertedStatus: OrderStatus;
-
-    switch (workerType) {
-      case WorkerTypes.WASHING:
-        revertedStatus = OrderStatus.ARRIVED_AT_OUTLET;
-        break;
-      case WorkerTypes.IRONING:
-        revertedStatus = OrderStatus.BEING_WASHED;
-        break;
-      case WorkerTypes.PACKING:
-        revertedStatus = OrderStatus.BEING_IRONED;
-        break;
-      default:
-        throw new ApiError(
-          `Cannot revert order status for worker type: ${workerType}`,
-          400,
-        );
-    }
-
-    await tx.order.update({
-      where: { uuid: orderId },
-      data: {
-        orderStatus: revertedStatus,
-        updatedAt: new Date(),
-      },
-    });
   };
 
   getBypassRequestStats = async (outletId: number) => {
