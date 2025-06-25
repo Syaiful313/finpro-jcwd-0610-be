@@ -23,7 +23,6 @@ export class UserRouter {
   private initializeRoutes = (): void => {
     this.router.get(
       "/:id",
-      this.jwtMiddleware.verifyToken(env().JWT_SECRET!),
       this.userController.getUser,
     );
     this.router.patch(
