@@ -87,7 +87,9 @@ export class WorkerService {
       orderWorkProcess: {
         none: {
           bypass: {
-            bypassStatus: BypassStatus.PENDING,
+            bypassStatus: {
+              in: [BypassStatus.PENDING, BypassStatus.REJECTED],
+            },
           },
         },
       },
@@ -122,6 +124,11 @@ export class WorkerService {
                     lastName: true,
                   },
                 },
+              },
+            },
+            bypass: {
+              where: {
+                bypassStatus: "APPROVED",
               },
             },
           },

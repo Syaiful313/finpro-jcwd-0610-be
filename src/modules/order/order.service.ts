@@ -1197,16 +1197,20 @@ export class OrderService {
     );
 
     if (distanceKm > closestOutlet.serviceRadius) {
-      throw new ApiError(`Sorry, the location you chose exceeds our service area`, 402);
+      throw new ApiError(
+        `Sorry, the location you chose exceeds our service area`,
+        402,
+      );
     }
 
     let totalDeliveryFee = 0;
     if (distanceKm <= 1) {
       totalDeliveryFee = closestOutlet.deliveryBaseFee;
     } else {
-      totalDeliveryFee =
+      totalDeliveryFee = Math.round(
         closestOutlet.deliveryBaseFee +
-        (distanceKm - 1) * closestOutlet.deliveryPerKm;
+          (distanceKm - 1) * closestOutlet.deliveryPerKm,
+      );
     }
 
     const nanoid = customAlphabet("0123456789", 6);
@@ -1241,6 +1245,7 @@ export class OrderService {
         message: `Request pickup for order ${newOrder.orderNumber}`,
         orderStatus: "WAITING_FOR_PICKUP",
         notifType: "NEW_PICKUP_REQUEST",
+        role: "DRIVER",
       },
     });
 
