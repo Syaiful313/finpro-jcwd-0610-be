@@ -211,13 +211,23 @@ export class AuthService {
     if (!process.env.JWT_SECRET) {
       throw new Error("Missing JWT_SECRET env variable");
     }
-    const token = this.tokenService.generateToken(
-      { id: user.id },
-      process.env.JWT_SECRET!,
-      { expiresIn: "1h" },
+
+    const tokenPayload: any = {
+      id: user.id,
+      role: user.role,
+    };
+
+    const accessToken = this.tokenService.generateToken(
+      tokenPayload,
+      env().JWT_SECRET,
     );
 
-    return { user, token };
+    const { password: pw, ...userWithoutPassword } = user;
+
+    return {
+      ...userWithoutPassword,
+      accessToken,
+    };
   };
 
   forgotPassword = async (body: ForgotPasswordDTO) => {
