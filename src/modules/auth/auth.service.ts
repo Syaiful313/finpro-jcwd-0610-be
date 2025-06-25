@@ -200,7 +200,6 @@ export class AuthService {
           email,
           firstName,
           lastName,
-          role: "CUSTOMER",
           profilePic: picture,
           provider: "GOOGLE",
           isVerified: true,
@@ -211,23 +210,13 @@ export class AuthService {
     if (!process.env.JWT_SECRET) {
       throw new Error("Missing JWT_SECRET env variable");
     }
-
-    const tokenPayload: any = {
-      id: user.id,
-      role: user.role,
-    };
-
-    const accessToken = this.tokenService.generateToken(
-      tokenPayload,
-      env().JWT_SECRET,
+     const token = this.tokenService.generateToken(
+      { userId: user.id },
+      process.env.JWT_SECRET!,
+      { expiresIn: "1h" },
     );
 
-    const { password: pw, ...userWithoutPassword } = user;
-
-    return {
-      ...userWithoutPassword,
-      accessToken,
-    };
+    return { user, token };
   };
 
   forgotPassword = async (body: ForgotPasswordDTO) => {
