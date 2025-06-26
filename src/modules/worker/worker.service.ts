@@ -88,7 +88,7 @@ export class WorkerService {
         none: {
           bypass: {
             bypassStatus: {
-              in: [BypassStatus.PENDING, BypassStatus.REJECTED],
+              in: [BypassStatus.PENDING],
             },
           },
         },
@@ -170,13 +170,42 @@ export class WorkerService {
     if (!order) throw new ApiError("Order not found", 404);
 
     const existingWork = await this.prisma.orderWorkProcess.findFirst({
-      where: { orderId: order.uuid, completedAt: null },
+      where: {
+        orderId: order.uuid,
+        completedAt: null,
+
+        OR: [
+          { bypassId: null },
+          {
+            bypass: {
+              bypassStatus: {
+                in: [BypassStatus.PENDING, BypassStatus.APPROVED],
+              },
+            },
+          },
+        ],
+      },
+      include: {
+        bypass: true,
+      },
     });
     if (existingWork) {
-      throw new ApiError(
-        `Order is already being processed at the ${existingWork.workerType} station.`,
-        400,
-      );
+      if (!existingWork.bypassId) {
+        throw new ApiError(
+          `Order is already being processed at the ${existingWork.workerType} station.`,
+          400,
+        );
+      } else if (existingWork.bypass?.bypassStatus === BypassStatus.PENDING) {
+        throw new ApiError(
+          `Order has a pending bypass request at the ${existingWork.workerType} station. Please wait for admin approval.`,
+          400,
+        );
+      } else if (existingWork.bypass?.bypassStatus === BypassStatus.APPROVED) {
+        throw new ApiError(
+          `Order has an approved bypass at the ${existingWork.workerType} station. Please use the bypass completion endpoint.`,
+          400,
+        );
+      }
     }
 
     let workType: WorkerTypes;
@@ -219,23 +248,51 @@ export class WorkerService {
     }
 
     return this.prisma.$transaction(async (tx) => {
-      const newWorkProcess = await tx.orderWorkProcess.create({
-        data: {
-          employeeId: employee.id,
+      let workProcess;
+
+      const rejectedWorkProcess = await tx.orderWorkProcess.findFirst({
+        where: {
           orderId: order.uuid,
-          workerType: workType,
+          employeeId: employee.id,
           completedAt: null,
+          workerType: workType,
+          bypass: {
+            bypassStatus: BypassStatus.REJECTED,
+          },
         },
       });
+
+      if (rejectedWorkProcess) {
+        workProcess = await tx.orderWorkProcess.update({
+          where: { id: rejectedWorkProcess.id },
+          data: {
+            updatedAt: new Date(),
+            bypassId: null,
+          },
+        });
+      } else {
+        workProcess = await tx.orderWorkProcess.create({
+          data: {
+            employeeId: employee.id,
+            orderId: order.uuid,
+            workerType: workType,
+            completedAt: null,
+          },
+        });
+      }
 
       await tx.order.update({
         where: { uuid: orderId },
         data: { orderStatus: newOrderStatus },
       });
 
+      const actionType = rejectedWorkProcess
+        ? "re-verified and resumed"
+        : "started";
+
       return {
-        message: `Verification successful. Order ${order.orderNumber} is now being processed at the ${workType} station.`,
-        workProcess: newWorkProcess,
+        message: `Verification successful. Order ${order.orderNumber} has been ${actionType} at the ${workType} station.`,
+        workProcess: workProcess,
       };
     });
   };
@@ -472,10 +529,18 @@ export class WorkerService {
         },
       },
     });
-
-    if (!bypassRequest) throw new ApiError("Bypass request not found", 404);
-    if (bypassRequest.bypassStatus !== BypassStatus.APPROVED) {
-      throw new ApiError("Bypass request is not approved", 400);
+    if (!bypassRequest) {
+      throw new ApiError("Bypass request not found", 404);
+    }
+    if (bypassRequest.bypassStatus === BypassStatus.PENDING) {
+      throw new ApiError("Bypass request is still pending approval", 400);
+    }
+    if (
+      ![BypassStatus.APPROVED, BypassStatus.REJECTED].includes(
+        bypassRequest.bypassStatus,
+      )
+    ) {
+      throw new ApiError("Invalid bypass request status", 400);
     }
 
     const workProcess = bypassRequest.orderWorkProcesses[0];
@@ -494,27 +559,33 @@ export class WorkerService {
     let outletAdminMessage: string;
     let nextWorkerMessage: string | null = null;
 
-    switch (workerType) {
-      case "WASHING":
-        nextStatus = OrderStatus.BEING_WASHED;
-        notificationType = NotifType.BYPASS_APPROVED;
-        outletAdminMessage = `Order ${order.orderNumber} has been processed at the Washing station with an approved bypass.`;
-        nextWorkerMessage = `New order ${order.orderNumber} is ready for ironing process after bypass.`;
-        break;
-      case "IRONING":
-        nextStatus = OrderStatus.BEING_IRONED;
-        notificationType = NotifType.BYPASS_APPROVED;
-        outletAdminMessage = `Order ${order.orderNumber} has been processed at the Ironing station with an approved bypass.`;
-        nextWorkerMessage = `New order ${order.orderNumber} is ready for packing process after bypass.`;
-        break;
-      case "PACKING":
-        nextStatus =
-          order.paymentStatus === "PAID"
-            ? OrderStatus.READY_FOR_DELIVERY
-            : OrderStatus.WAITING_PAYMENT;
-        notificationType = NotifType.BYPASS_APPROVED;
-        outletAdminMessage = `All processes for Order ${order.orderNumber} are complete with an approved bypass by ${employee.user.firstName}.`;
-        break;
+    if (bypassRequest.bypassStatus === BypassStatus.REJECTED) {
+      nextStatus = order.orderStatus;
+      notificationType = NotifType.BYPASS_REJECTED;
+      outletAdminMessage = `Order ${order.orderNumber} bypass at ${workerType} station has been processed (rejected status).`;
+    } else if (bypassRequest.bypassStatus === BypassStatus.APPROVED) {
+      switch (workerType) {
+        case "WASHING":
+          nextStatus = OrderStatus.BEING_WASHED;
+          notificationType = NotifType.BYPASS_APPROVED;
+          outletAdminMessage = `Order ${order.orderNumber} has been processed at the Washing station with an approved bypass.`;
+          nextWorkerMessage = `New order ${order.orderNumber} is ready for ironing process after bypass.`;
+          break;
+        case "IRONING":
+          nextStatus = OrderStatus.BEING_IRONED;
+          notificationType = NotifType.BYPASS_APPROVED;
+          outletAdminMessage = `Order ${order.orderNumber} has been processed at the Ironing station with an approved bypass.`;
+          nextWorkerMessage = `New order ${order.orderNumber} is ready for packing process after bypass.`;
+          break;
+        case "PACKING":
+          nextStatus =
+            order.paymentStatus === "PAID"
+              ? OrderStatus.READY_FOR_DELIVERY
+              : OrderStatus.WAITING_PAYMENT;
+          notificationType = NotifType.BYPASS_APPROVED;
+          outletAdminMessage = `All processes for Order ${order.orderNumber} are complete with an approved bypass by ${employee.user.firstName}.`;
+          break;
+      }
     }
 
     const updatedOrder = await this.prisma.$transaction(async (tx) => {

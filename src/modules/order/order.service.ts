@@ -1171,6 +1171,7 @@ export class OrderService {
 
     await this.prisma.notification.create({
       data: {
+        orderId: newOrder.uuid,
         message: `Request pickup for order ${newOrder.orderNumber}`,
         orderStatus: "WAITING_FOR_PICKUP",
         notifType: "NEW_PICKUP_REQUEST",

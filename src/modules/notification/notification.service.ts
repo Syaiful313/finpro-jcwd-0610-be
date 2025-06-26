@@ -21,12 +21,14 @@ export class NotificationService {
     if (!employee) {
       throw new ApiError("Employee not found for this user", 400);
     }
+
     const notifications = await this.prisma.notification.findMany({
       where: {
         role: "DRIVER",
         Order: {
           outletId: employee.outletId,
         },
+        //  fasdfa
         NOT: {
           readByUserIds: {
             has: authUserId,

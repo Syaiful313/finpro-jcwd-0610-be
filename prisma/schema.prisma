@@ -4,8 +4,8 @@ generator client {
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
   // directUrl = env("DIRECT_URL")
 }
 
@@ -183,18 +183,17 @@ model Address {
 }
 
 model OrderWorkProcess {
-  id          Int            @id @default(autoincrement())
-  employeeId  Int
-  employee    Employee       @relation(fields: [employeeId], references: [id])
-  orderId     String
-  order       Order          @relation(fields: [orderId], references: [uuid])
-  bypassId    Int?
-  bypass      BypassRequest? @relation(fields: [bypassId], references: [id])
-  workerType  WorkerTypes
-  notes       String?
-  completedAt DateTime?
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
+  id             Int             @id @default(autoincrement())
+  employeeId     Int
+  employee       Employee        @relation(fields: [employeeId], references: [id])
+  orderId        String
+  order          Order           @relation(fields: [orderId], references: [uuid])
+  workerType     WorkerTypes
+  notes          String?
+  completedAt    DateTime?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  bypassRequests BypassRequest[]
 
   @@map("orderWorkProcesses")
 }
@@ -215,7 +214,8 @@ model BypassRequest {
   createdAt          DateTime     @default(now())
   updatedAt          DateTime     @updatedAt
 
-  orderWorkProcesses OrderWorkProcess[]
+  orderWorkProcessId Int?
+  orderWorkProcess   OrderWorkProcess? @relation(fields: [orderWorkProcessId], references: [id])
 
   @@map("bypassRequests")
 }
