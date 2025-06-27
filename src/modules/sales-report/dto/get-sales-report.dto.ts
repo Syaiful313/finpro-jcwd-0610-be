@@ -83,9 +83,6 @@ export class GetSalesReportDTO {
   readonly isDateRangeValid?: boolean = true;
 }
 
-/**
- * DTO for outlet comparison report
- */
 export class GetOutletComparisonDTO {
   @IsOptional()
   @IsDateString(

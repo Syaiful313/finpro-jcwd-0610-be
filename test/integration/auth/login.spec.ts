@@ -29,7 +29,7 @@ describe("POST /auth/login", () => {
     const hashedPassword = await hashPassword("Password123");
     await prisma.user.create({
       data: { 
-        ...user,  // gunakan spread operator untuk mendapatkan semua field
+        ...user, 
         password: hashedPassword 
       },
     });

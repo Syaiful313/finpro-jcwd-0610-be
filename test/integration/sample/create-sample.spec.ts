@@ -9,7 +9,6 @@ describe("POST /samples", () => {
   const { app } = new App();
 
   beforeEach(() => {
-    // Intercept Cloudinary API calls
     nock("https://api.cloudinary.com")
       .post(`/v1_1/${env().CLOUDINARY_CLOUD_NAME}/image/upload`)
       .reply(200, {

@@ -8,11 +8,6 @@ export class CronService {
 
   public initializeJobs(): void {
     cron.schedule("*/30 * * * *", async () => {
-      console.log(
-        "Cron job executed at",
-        new Date().toLocaleString("id-ID", { timeZone: "Asia/Jakarta" }),
-      );
-
       const now = new Date();
       const twoDaysAgo = new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000);
 
@@ -39,23 +34,14 @@ export class CronService {
             updatedAt: new Date(),
           },
         });
-
-        console.log(`Auto-confirmed order ${order.uuid}`);
       }
     });
 
     cron.schedule(
       "58 23 * * *",
       async () => {
-        console.log(
-          "Cron job executed for auto-clocking out employees at",
-          new Date().toLocaleString("id-ID", { timeZone: "Asia/Jakarta" }),
-        );
         try {
           const result = await this.autoClockOutEmployees();
-          console.log(
-            `Auto-clock out process completed for date: ${result.date}. Updated ${result.updatedCount} employee(s).`,
-          );
         } catch (error) {
           console.error("Error during auto-clock out job:", error);
         }

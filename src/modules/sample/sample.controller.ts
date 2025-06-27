@@ -23,7 +23,7 @@ export class SampleController {
 
   getSample = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      req.user; // token payload
+      req.user; 
       const id = Number(req.params.id);
       const result = await this.sampleService.getSample(id);
 
