@@ -1,10 +1,7 @@
-import { Prisma } from "@prisma/client";
 import { injectable } from "tsyringe";
 import { ApiError } from "../../utils/api-error";
 import { PaginationService } from "../pagination/pagination.service";
 import { PrismaService } from "../prisma/prisma.service";
-import { GetNotificationsDTO } from "./dto/get-notif.dto";
-import { count } from "console";
 
 @injectable()
 export class NotificationService {
