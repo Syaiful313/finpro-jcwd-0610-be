@@ -78,7 +78,7 @@ export class PaymentService {
       await this.prisma.notification.create({
         data: {
           orderId: order.uuid,
-          message: "Order is ready to deliver",
+          message: `New delivery request for Order ${order.orderNumber} is available to be claimed.`,
           orderStatus: "READY_FOR_DELIVERY",
           notifType: "NEW_DELIVERY_REQUEST",
           role: "DRIVER",
