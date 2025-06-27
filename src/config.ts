@@ -41,6 +41,26 @@ class EnvConfig {
   @IsNotEmpty()
   @IsString()
   readonly CLOUDINARY_API_SECRET!: string;
+
+  @IsNotEmpty()
+  @IsString()
+  readonly FRONTEND_URL!: string;
+
+  @IsNotEmpty()
+  @IsString()
+  readonly GOOGLE_CLIENT_ID!: string;
+
+  @IsNotEmpty()
+  @IsString()
+  readonly GOOGLE_CLIENT_SECRET!: string;
+
+  @IsNotEmpty()
+  @IsString()
+  readonly XENDIT_PUBLIC_KEY!: string;
+
+  @IsNotEmpty()
+  @IsString()
+  readonly XENDIT_SECRET_KEY!: string;
 }
 
 export const env = () => {
