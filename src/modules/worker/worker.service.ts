@@ -522,8 +522,6 @@ export class WorkerService {
       include: { user: true },
     });
     if (!employee) throw new ApiError("Worker not found", 404);
-
-    //
     const bypassRequest = await this.prisma.bypassRequest.findUnique({
       where: { id: bypassRequestId },
       include: {

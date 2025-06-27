@@ -171,7 +171,7 @@ export class UserService {
         where: {
           userId: authUserId,
           isPrimary: true,
-          id: { not: addressId }, // Don't unset this one
+          id: { not: addressId }, 
         },
         data: {
           isPrimary: false,

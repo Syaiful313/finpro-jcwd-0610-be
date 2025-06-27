@@ -45,7 +45,7 @@ class EnvConfig {
 
 export const env = () => {
   const envConfig = plainToInstance(EnvConfig, process.env, {
-    enableImplicitConversion: true, // Automatically convert types (e.g., string to number)
+    enableImplicitConversion: true, 
   });
 
   const errors = validateSync(envConfig, {

@@ -1,4 +1,3 @@
-// lib/xendit.ts
 import { Xendit } from 'xendit-node';
 import { InvoiceApi } from 'xendit-node/invoice/apis';
 

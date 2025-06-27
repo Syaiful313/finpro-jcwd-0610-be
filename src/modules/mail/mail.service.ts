@@ -35,14 +35,8 @@ export class MailService {
     context: object,
   ): Promise<string> {
     const templatePath = path.join(this.templatesDir, `${templateName}.hbs`);
-
-    // Read the template file
     const templateSource = await fs.readFile(templatePath, "utf-8");
-
-    // Compile the template
     const compiledTemplate = handlebars.compile(templateSource);
-
-    // Return the rendered template
     return compiledTemplate(context);
   }
 

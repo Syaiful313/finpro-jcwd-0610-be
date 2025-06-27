@@ -28,7 +28,6 @@ export class NotificationService {
         Order: {
           outletId: employee.outletId,
         },
-        //  fasdfa
         NOT: {
           readByUserIds: {
             has: authUserId,

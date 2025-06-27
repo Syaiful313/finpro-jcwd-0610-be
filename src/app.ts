@@ -77,12 +77,12 @@ export default class App {
     this.app.use("/worker", workerRouter.getRouter());
     this.app.use("/laundry-item", laundryItemRouter.getRouter());
     this.app.use("/notifications", notificationRouter.getRouter());
-    this.app.use("/user", userRouter.getRouter());
+    this.app.use("/users", userRouter.getRouter());
     this.app.use("/orders", orderRouter.getRouter());
     this.app.use("/employees", employeeRouter.getRouter());
     this.app.use("/bypass-requests", bypassRouter.getRouter());
     this.app.use("/reports", salesReportRouter.getRouter());
-    this.app.use("/payment", paymentRouter.getRouter());
+    this.app.use("/payments", paymentRouter.getRouter());
     this.app.use(
       "/employee-performance",
       employeePerformanceRouter.getRouter(),

@@ -13,7 +13,7 @@ export const mockImageData = ({
       mimetype: "image/jpeg",
       buffer: Buffer.from("image data"),
       size: 1234,
-      stream: {} as any, // Mocking the stream
+      stream: {} as any, 
       destination: "/uploads",
       filename: `test-image${imageNumber}.jpg`,
       path: `/uploads/test-image${imageNumber}.jpg`,
