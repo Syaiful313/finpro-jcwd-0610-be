@@ -83,10 +83,7 @@ export default class App {
     this.app.use("/bypass-requests", bypassRouter.getRouter());
     this.app.use("/reports", salesReportRouter.getRouter());
     this.app.use("/payments", paymentRouter.getRouter());
-    this.app.use(
-      "/employee-performances",
-      employeePerformanceRouter.getRouter(),
-    );
+    this.app.use("/employee-performances", employeePerformanceRouter.getRouter());
   }
 
   private handleError(): void {
