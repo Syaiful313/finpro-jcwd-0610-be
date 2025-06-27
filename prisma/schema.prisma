@@ -4,8 +4,8 @@ generator client {
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
   // directUrl = env("DIRECT_URL")
 }
 
@@ -206,18 +206,25 @@ enum WorkerTypes {
 }
 
 model BypassRequest {
-  id                 Int          @id @default(autoincrement())
+  id                 Int           @id @default(autoincrement())
   approvedBy         Int?
-  approvedByEmployee Employee?    @relation(fields: [approvedBy], references: [id])
+  approvedByEmployee Employee?     @relation(fields: [approvedBy], references: [id])
   reason             String
   adminNote          String?
-  bypassStatus       BypassStatus @default(PENDING)
-  createdAt          DateTime     @default(now())
-  updatedAt          DateTime     @updatedAt
+  bypassStatus       BypassStatus  @default(PENDING)
+  bypassProcess      BypassProcess @default(IN_PROGRESS)
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
 
   orderWorkProcesses OrderWorkProcess[]
 
   @@map("bypassRequests")
+}
+
+enum BypassProcess {
+  IN_PROGRESS
+  RE_VERIFY
+  COMPLETED
 }
 
 enum BypassStatus {
