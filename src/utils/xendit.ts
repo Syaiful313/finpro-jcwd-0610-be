@@ -23,9 +23,7 @@ class XenditService {
     email: string;
     successRedirectUrl?: string;
   }) {
-    console.log("XENDIT SECRET",process.env.XENDIT_SECRET_KEY!)
     const { externalId, amount, email, successRedirectUrl } = params;
-
     return this.invoice.createInvoice({
       data: {
         externalId,

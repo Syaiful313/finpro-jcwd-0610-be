@@ -40,7 +40,6 @@ export class AuthController {
   ) => {
     try {
       const authUserId = req.user!.id;
-      console.log("Auth User ID", authUserId);
       const body = req.body as VerificationDTO;
       const result = await this.authService.verifyEmailAndSetPassword(
         body,
