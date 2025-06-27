@@ -46,7 +46,7 @@ export class AdminService {
         roleConditions.push({
           AND: [
             { role: { in: employeeRoles } },
-            { employees: { some: { outletId: outletId } } },
+            { employees: { some: { outletId: outletId, deletedAt: null } } },
           ],
         });
       }
@@ -109,23 +109,55 @@ export class AdminService {
           employees: {
             where: {
               outletId: outletId,
+              deletedAt: null,
             },
             select: {
               id: true,
               npwp: true,
               outletId: true,
               createdAt: true,
+              outlet: {
+                select: {
+                  id: true,
+                  outletName: true,
+                  address: true,
+                },
+              },
+            },
+          },
+          outlet: {
+            select: {
+              id: true,
+              outletName: true,
+              address: true,
             },
           },
         }
       : {
           ...baseSelect,
           employees: {
+            where: {
+              deletedAt: null,
+            },
             select: {
               id: true,
               npwp: true,
               outletId: true,
               createdAt: true,
+              outlet: {
+                select: {
+                  id: true,
+                  outletName: true,
+                  address: true,
+                },
+              },
+            },
+          },
+          outlet: {
+            select: {
+              id: true,
+              outletName: true,
+              address: true,
             },
           },
         };
@@ -206,7 +238,21 @@ export class AdminService {
       throw new ApiError("Role wajib diisi", 400);
     }
 
+    if (!Object.values(Role).includes(role as Role)) {
+      throw new ApiError("Role tidak valid", 400);
+    }
+
     const targetOutletId = outletId;
+    const isEmployeeRole = this.isEmployeeRole(role as Role);
+
+    if (isEmployeeRole) {
+      if (!targetOutletId) {
+        throw new ApiError("Outlet ID wajib untuk role employee", 400);
+      }
+      if (!npwp) {
+        throw new ApiError("NPWP wajib untuk role employee", 400);
+      }
+    }
 
     await this.adminValidation.validateUserData({
       email,
@@ -240,20 +286,21 @@ export class AdminService {
         profilePic: profilePicUrl,
         isVerified: isVerifiedBool,
         provider: provider || "CREDENTIAL",
-        role: role,
-        ...(this.isEmployeeRole(role) && targetOutletId
+        role: role as Role,
+
+        ...(role === Role.OUTLET_ADMIN && targetOutletId
           ? { outletId: targetOutletId }
           : {}),
       };
 
       const newUser = await tx.user.create({ data: userData });
 
-      if (this.isEmployeeRole(role) && targetOutletId && npwp) {
+      if (isEmployeeRole && targetOutletId) {
         await tx.employee.create({
           data: {
             userId: newUser.id,
             outletId: targetOutletId,
-            npwp,
+            npwp: npwp!,
           },
         });
       }
@@ -286,7 +333,20 @@ export class AdminService {
       npwp,
     } = body;
 
-    const existingUser = await this.adminValidation.validateUserExists(userId);
+    const existingUser = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        employees: {
+          where: { deletedAt: null },
+          include: { outlet: true },
+        },
+        outlet: true,
+      },
+    });
+
+    if (!existingUser) {
+      throw new ApiError("User tidak ditemukan", 404);
+    }
 
     await this.adminValidation.validateUserUpdateData({
       userId,
@@ -316,14 +376,21 @@ export class AdminService {
       hashedPassword = await this.passwordService.hashPassword(password);
     }
 
-    const newRoleRequiresEmployeeData = role && this.isEmployeeRoleString(role);
-    const currentRoleRequiresEmployeeData = this.isEmployeeRole(
-      existingUser.role,
-    );
+    const currentRole = existingUser.role;
+    const newRole = role ? (role as Role) : currentRole;
+    const roleChanged = role && role !== currentRole;
 
-    let skipEmployeeUpdate = false;
-    if (!role || role === existingUser.role) {
-      skipEmployeeUpdate = true;
+    const currentIsEmployee = this.isEmployeeRole(currentRole);
+    const newIsEmployee = this.isEmployeeRole(newRole);
+
+    if (newIsEmployee) {
+      if (roleChanged && !outletId) {
+        throw new ApiError("Outlet ID wajib untuk role employee", 400);
+      }
+
+      if (roleChanged && !currentIsEmployee && !npwp) {
+        throw new ApiError("NPWP wajib untuk role employee baru", 400);
+      }
     }
 
     const result = await this.prisma.$transaction(async (tx) => {
@@ -339,12 +406,14 @@ export class AdminService {
       if (isVerifiedBool !== undefined) updateData.isVerified = isVerifiedBool;
       if (provider !== undefined) updateData.provider = provider;
 
-      if (!skipEmployeeUpdate) {
-        if (newRoleRequiresEmployeeData) {
+      if (roleChanged) {
+        if (newRole === Role.OUTLET_ADMIN) {
           updateData.outletId = outletId ? Number(outletId) : null;
         } else {
           updateData.outletId = null;
         }
+      } else if (currentRole === Role.OUTLET_ADMIN && outletId !== undefined) {
+        updateData.outletId = outletId ? Number(outletId) : null;
       }
 
       const updatedUser = await tx.user.update({
@@ -352,52 +421,126 @@ export class AdminService {
         data: updateData,
       });
 
-      if (!skipEmployeeUpdate) {
-        if (newRoleRequiresEmployeeData) {
+      if (roleChanged) {
+        if (currentIsEmployee && !newIsEmployee) {
+          await tx.employee.updateMany({
+            where: { userId: userId, deletedAt: null },
+            data: { deletedAt: new Date() },
+          });
+        } else if (!currentIsEmployee && newIsEmployee) {
+          const targetOutletId = Number(outletId);
+          await tx.employee.create({
+            data: {
+              userId: userId,
+              outletId: targetOutletId,
+              npwp: npwp || "",
+            },
+          });
+        } else if (currentIsEmployee && newIsEmployee) {
           const targetOutletId = outletId ? Number(outletId) : undefined;
-
-          if (!targetOutletId) {
-            throw new ApiError("Outlet ID wajib untuk role employee", 400);
+          if (targetOutletId) {
+            const updateEmployeeData: any = { outletId: targetOutletId };
+            if (npwp !== undefined) updateEmployeeData.npwp = npwp;
           }
+        }
+      } else if (currentIsEmployee) {
+        const updateEmployeeData: any = {};
+        let shouldUpdateEmployee = false;
 
-          if (existingUser.employees.length > 0) {
-            await tx.employee.updateMany({
-              where: { userId: userId },
-              data: {
-                outletId: targetOutletId,
-                ...(npwp && { npwp: npwp }),
-              },
-            });
-          } else {
+        if (outletId !== undefined) {
+          const targetOutletId = Number(outletId);
+
+          const currentEmployeeOutlet = existingUser.employees[0]?.outletId;
+
+          if (currentEmployeeOutlet !== targetOutletId) {
+            updateEmployeeData.outletId = targetOutletId;
+            shouldUpdateEmployee = true;
+          }
+        }
+
+        if (npwp !== undefined) {
+          const currentNpwp = existingUser.employees[0]?.npwp;
+          if (currentNpwp !== npwp) {
+            updateEmployeeData.npwp = npwp;
+            shouldUpdateEmployee = true;
+          }
+        }
+
+        if (shouldUpdateEmployee) {
+          const updateResult = await tx.employee.updateMany({
+            where: { userId: userId, deletedAt: null },
+            data: updateEmployeeData,
+          });
+
+          if (updateResult.count === 0) {
             await tx.employee.create({
               data: {
                 userId: userId,
-                outletId: targetOutletId,
+                outletId: Number(outletId),
                 npwp: npwp || "",
               },
             });
           }
-        } else if (
-          currentRoleRequiresEmployeeData &&
-          !newRoleRequiresEmployeeData
-        ) {
-          await tx.employee.deleteMany({
-            where: { userId: userId },
-          });
         }
       }
 
       return updatedUser;
     });
 
+    const userWithCompleteInfo = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        role: true,
+        phoneNumber: true,
+        profilePic: true,
+        isVerified: true,
+        provider: true,
+        outletId: true,
+        createdAt: true,
+        updatedAt: true,
+        deletedAt: true,
+        outlet: {
+          select: {
+            id: true,
+            outletName: true,
+            address: true,
+          },
+        },
+        employees: {
+          where: { deletedAt: null },
+          select: {
+            id: true,
+            npwp: true,
+            outletId: true,
+            createdAt: true,
+            outlet: {
+              select: {
+                id: true,
+                outletName: true,
+                address: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    const transformedUser = {
+      ...userWithCompleteInfo,
+      phoneNumber: userWithCompleteInfo?.phoneNumber?.toString(),
+      password: undefined,
+
+      employeeInfo: userWithCompleteInfo?.employees?.[0] || null,
+    };
+
     return {
       success: true,
       message: "User berhasil diupdate",
-      data: {
-        ...result,
-        phoneNumber: result.phoneNumber?.toString(),
-        password: undefined,
-      },
+      data: transformedUser,
     };
   };
 
