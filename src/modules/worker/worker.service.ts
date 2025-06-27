@@ -1,4 +1,5 @@
 import {
+  BypassProcess,
   BypassStatus,
   NotifType,
   OrderStatus,
@@ -267,9 +268,16 @@ export class WorkerService {
           where: { id: rejectedWorkProcess.id },
           data: {
             updatedAt: new Date(),
-            bypassId: null,
           },
         });
+        if (rejectedWorkProcess.bypassId) {
+          await tx.bypassRequest.update({
+            where: { id: rejectedWorkProcess.bypassId },
+            data: {
+              bypassProcess: BypassProcess.RE_VERIFY,
+            },
+          });
+        }
       } else {
         workProcess = await tx.orderWorkProcess.create({
           data: {
@@ -515,6 +523,7 @@ export class WorkerService {
     });
     if (!employee) throw new ApiError("Worker not found", 404);
 
+    //
     const bypassRequest = await this.prisma.bypassRequest.findUnique({
       where: { id: bypassRequestId },
       include: {
@@ -524,11 +533,16 @@ export class WorkerService {
             completedAt: null,
           },
           include: {
-            order: true,
+            order: {
+              include: {
+                orderItems: true,
+              },
+            },
           },
         },
       },
     });
+
     if (!bypassRequest) {
       throw new ApiError("Bypass request not found", 404);
     }
@@ -589,8 +603,8 @@ export class WorkerService {
     }
 
     const updatedOrder = await this.prisma.$transaction(async (tx) => {
-      for (const item of items) {
-        await tx.orderItem.updateMany({
+      const itemUpdatePromises = items.map((item) =>
+        tx.orderItem.updateMany({
           where: {
             orderId: order.uuid,
             laundryItemId: item.laundryItemId,
@@ -598,74 +612,94 @@ export class WorkerService {
           data: {
             quantity: item.quantity,
           },
+        }),
+      );
+
+      const [_, updatedWorkProcess] = await Promise.all([
+        Promise.all(itemUpdatePromises),
+        tx.orderWorkProcess.update({
+          where: { id: workProcess.id },
+          data: {
+            notes: notes,
+            completedAt: new Date(),
+          },
+        }),
+      ]);
+
+      let updated;
+      if (bypassRequest.bypassStatus === BypassStatus.REJECTED) {
+        const [orderUpdate] = await Promise.all([
+          tx.order.update({
+            where: { uuid: order.uuid },
+            data: { orderStatus: nextStatus },
+          }),
+          tx.bypassRequest.update({
+            where: { id: bypassRequestId },
+            data: {
+              bypassProcess: BypassProcess.COMPLETED,
+            },
+          }),
+        ]);
+        updated = orderUpdate;
+      } else {
+        updated = await tx.order.update({
+          where: { uuid: order.uuid },
+          data: { orderStatus: nextStatus },
         });
       }
 
-      await tx.orderWorkProcess.update({
-        where: { id: workProcess.id },
-        data: {
-          notes: notes,
-          completedAt: new Date(),
-        },
-      });
-
-      const updated = await tx.order.update({
-        where: { uuid: order.uuid },
-        data: { orderStatus: nextStatus },
-      });
+      const notifications = [];
 
       if (nextWorkerMessage) {
-        await tx.notification.create({
-          data: {
-            orderId: order.uuid,
-            message: nextWorkerMessage,
-            notifType: NotifType.ORDER_STARTED,
-            orderStatus: nextStatus,
-            role: Role.WORKER,
-          },
+        notifications.push({
+          orderId: order.uuid,
+          message: nextWorkerMessage,
+          notifType: NotifType.ORDER_STARTED,
+          orderStatus: nextStatus,
+          role: Role.WORKER,
         });
       }
 
-      await tx.notification.create({
-        data: {
-          orderId: order.uuid,
-          message: outletAdminMessage,
-          notifType: notificationType,
-          orderStatus: nextStatus,
-          role: Role.OUTLET_ADMIN,
-        },
+      notifications.push({
+        orderId: order.uuid,
+        message: outletAdminMessage,
+        notifType: notificationType,
+        orderStatus: nextStatus,
+        role: Role.OUTLET_ADMIN,
       });
 
       if (nextStatus === OrderStatus.WAITING_PAYMENT) {
-        await tx.notification.create({
-          data: {
-            orderId: order.uuid,
-            message: `Your laundry is ready! Please complete the payment for Order ${order.orderNumber} to proceed with delivery.`,
-            notifType: NotifType.ORDER_COMPLETED,
-            orderStatus: nextStatus,
-            role: Role.CUSTOMER,
-          },
+        notifications.push({
+          orderId: order.uuid,
+          message: `Your laundry is ready! Please complete the payment for Order ${order.orderNumber} to proceed with delivery.`,
+          notifType: NotifType.ORDER_COMPLETED,
+          orderStatus: nextStatus,
+          role: Role.CUSTOMER,
         });
       }
 
       if (nextStatus === OrderStatus.READY_FOR_DELIVERY) {
-        await tx.notification.create({
-          data: {
+        notifications.push(
+          {
             orderId: order.uuid,
             message: `Payment confirmed! Order ${order.orderNumber} is now ready and waiting for a driver to deliver.`,
             notifType: NotifType.ORDER_COMPLETED,
             orderStatus: nextStatus,
             role: Role.CUSTOMER,
           },
-        });
-        await tx.notification.create({
-          data: {
+          {
             orderId: order.uuid,
             message: `New delivery request for Order ${order.orderNumber} is available to be claimed.`,
             notifType: NotifType.NEW_DELIVERY_REQUEST,
             orderStatus: nextStatus,
             role: Role.DRIVER,
           },
+        );
+      }
+
+      if (notifications.length > 0) {
+        await tx.notification.createMany({
+          data: notifications,
         });
       }
 

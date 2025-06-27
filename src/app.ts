@@ -61,7 +61,9 @@ export default class App {
     const bypassRouter = container.resolve(BypassRouter);
     const salesReportRouter = container.resolve(SalesReportRouter);
     const paymentRouter = container.resolve(PaymentRouter);
-    const employeePerformanceRouter = container.resolve(EmployeePerformanceRouter);
+    const employeePerformanceRouter = container.resolve(
+      EmployeePerformanceRouter,
+    );
 
     this.app.get("/", (_, res) => {
       res.send("Welcome");
@@ -71,18 +73,20 @@ export default class App {
     this.app.use("/admin", adminRouter.getRouter());
     this.app.use("/outlet", outletRouter.getRouter());
     this.app.use("/driver", driverRouter.getRouter());
-    this.app.use("/attendance", attendanceRouter.getRouter());
+    this.app.use("/attendances", attendanceRouter.getRouter());
     this.app.use("/worker", workerRouter.getRouter());
     this.app.use("/laundry-item", laundryItemRouter.getRouter());
-    this.app.use("/notification", notificationRouter.getRouter());
+    this.app.use("/notifications", notificationRouter.getRouter());
     this.app.use("/user", userRouter.getRouter());
     this.app.use("/orders", orderRouter.getRouter());
     this.app.use("/employees", employeeRouter.getRouter());
     this.app.use("/bypass-requests", bypassRouter.getRouter());
     this.app.use("/reports", salesReportRouter.getRouter());
     this.app.use("/payment", paymentRouter.getRouter());
-    this.app.use("/employee-performance", employeePerformanceRouter.getRouter());
-
+    this.app.use(
+      "/employee-performance",
+      employeePerformanceRouter.getRouter(),
+    );
   }
 
   private handleError(): void {
@@ -90,7 +94,7 @@ export default class App {
   }
 
   public start(): void {
-    this.app.listen(env().PORT, '0.0.0.0',() => {
+    this.app.listen(env().PORT, "0.0.0.0", () => {
       console.log(`  ➜  [🔥] Local:   http://localhost:${env().PORT}`);
     });
   }

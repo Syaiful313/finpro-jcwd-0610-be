@@ -183,17 +183,18 @@ model Address {
 }
 
 model OrderWorkProcess {
-  id             Int             @id @default(autoincrement())
-  employeeId     Int
-  employee       Employee        @relation(fields: [employeeId], references: [id])
-  orderId        String
-  order          Order           @relation(fields: [orderId], references: [uuid])
-  workerType     WorkerTypes
-  notes          String?
-  completedAt    DateTime?
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
-  bypassRequests BypassRequest[]
+  id          Int            @id @default(autoincrement())
+  employeeId  Int
+  employee    Employee       @relation(fields: [employeeId], references: [id])
+  orderId     String
+  order       Order          @relation(fields: [orderId], references: [uuid])
+  bypassId    Int?
+  bypass      BypassRequest? @relation(fields: [bypassId], references: [id])
+  workerType  WorkerTypes
+  notes       String?
+  completedAt DateTime?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
 
   @@map("orderWorkProcesses")
 }
@@ -205,19 +206,25 @@ enum WorkerTypes {
 }
 
 model BypassRequest {
-  id                 Int          @id @default(autoincrement())
+  id                 Int           @id @default(autoincrement())
   approvedBy         Int?
-  approvedByEmployee Employee?    @relation(fields: [approvedBy], references: [id])
+  approvedByEmployee Employee?     @relation(fields: [approvedBy], references: [id])
   reason             String
   adminNote          String?
-  bypassStatus       BypassStatus @default(PENDING)
-  createdAt          DateTime     @default(now())
-  updatedAt          DateTime     @updatedAt
+  bypassStatus       BypassStatus  @default(PENDING)
+  bypassProcess      BypassProcess @default(IN_PROGRESS)
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
 
-  orderWorkProcessId Int?
-  orderWorkProcess   OrderWorkProcess? @relation(fields: [orderWorkProcessId], references: [id])
+  orderWorkProcesses OrderWorkProcess[]
 
   @@map("bypassRequests")
+}
+
+enum BypassProcess {
+  IN_PROGRESS
+  RE_VERIFY
+  COMPLETED
 }
 
 enum BypassStatus {

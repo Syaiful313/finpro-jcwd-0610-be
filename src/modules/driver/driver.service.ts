@@ -573,7 +573,7 @@ export class DriverService {
   ) {
     const employee = await this._getAndValidateDriver(authUserId);
     if (await this.isDriverBusy(employee.id))
-      throw new ApiError("Driver is busy with another task", 400);
+      throw new ApiError("Please complete the ongoing job first", 400);
 
     const modelName = type === "pickup" ? "pickUpJob" : "deliveryJob";
     const job = await (this.prisma[modelName] as any).findFirst({
