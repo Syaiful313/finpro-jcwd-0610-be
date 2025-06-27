@@ -109,34 +109,6 @@ export class AttendanceService {
     });
   };
 
-  public getAttendanceHistory = async (
-    authUserId: number,
-    startDate?: Date,
-    endDate?: Date,
-  ) => {
-    const employee = await this._getEmployeeByAuthId(authUserId);
-
-    const whereClause: Prisma.AttendanceWhereInput = {
-      employeeId: employee.id,
-      ...(startDate &&
-        endDate && {
-          clockInAt: {
-            gte: startDate,
-            lte: endDate,
-          },
-        }),
-    };
-
-    return this.prisma.attendance.findMany({
-      where: whereClause,
-      orderBy: { clockInAt: "desc" },
-      include: {
-        employee: { select: { id: true, userId: true } },
-        outlet: { select: { id: true, outletName: true } },
-      },
-    });
-  };
-
   public getCurrentAttendance = async (authUserId: number) => {
     const employee = await this._getEmployeeByAuthId(authUserId);
     return this.prisma.attendance.findFirst({
@@ -173,18 +145,9 @@ export class AttendanceService {
       throw new ApiError("User not found", 404);
     }
 
-    const allowedRoles = [
-      Role.ADMIN,
-      Role.OUTLET_ADMIN,
-      Role.DRIVER,
-      Role.WORKER,
-    ];
+    const allowedRoles = [Role.OUTLET_ADMIN, Role.DRIVER, Role.WORKER];
 
-    const userRole = user.role as
-      | "ADMIN"
-      | "OUTLET_ADMIN"
-      | "DRIVER"
-      | "WORKER";
+    const userRole = user.role as "OUTLET_ADMIN" | "DRIVER" | "WORKER";
     if (!allowedRoles.includes(userRole)) {
       throw new ApiError(
         "Access denied. Invalid role for attendance access",
@@ -196,12 +159,10 @@ export class AttendanceService {
     if (user.employees.length > 0) {
       employee = user.employees[0];
     } else {
-      if (user.role !== Role.ADMIN && user.role !== Role.OUTLET_ADMIN) {
-        throw new ApiError(
-          "Access denied. Employee record required for this role",
-          403,
-        );
-      }
+      throw new ApiError(
+        "Access denied. Employee record required for this role",
+        403,
+      );
     }
 
     const validatedFilters = {
@@ -212,7 +173,7 @@ export class AttendanceService {
 
     const whereClause = this._createAttendanceWhereClause(
       user,
-      user.employees[0],
+      employee,
       validatedFilters,
     );
 
@@ -223,6 +184,7 @@ export class AttendanceService {
         employee: {
           select: {
             id: true,
+            outletId: true,
             user: {
               select: {
                 id: true,
@@ -350,9 +312,7 @@ export class AttendanceService {
     const { search, startDate, endDate, employeeId } = filters;
     const whereClause: Prisma.AttendanceWhereInput = {};
 
-    if (user.role === Role.ADMIN) {
-      if (employeeId) whereClause.employeeId = employeeId;
-    } else if (user.role === Role.OUTLET_ADMIN) {
+    if (user.role === Role.OUTLET_ADMIN) {
       if (employee.outletId === null) {
         throw new ApiError("Current user is not assigned to any outlet.", 403);
       }
@@ -367,10 +327,7 @@ export class AttendanceService {
       );
     }
 
-    if (
-      search &&
-      (user.role === Role.ADMIN || user.role === Role.OUTLET_ADMIN)
-    ) {
+    if (search && user.role === Role.OUTLET_ADMIN) {
       whereClause.employee = {
         user: {
           OR: [
@@ -392,12 +349,12 @@ export class AttendanceService {
       }
     }
 
-    if (user.role === Role.ADMIN || user.role === Role.OUTLET_ADMIN) {
+    if (user.role === Role.OUTLET_ADMIN) {
+      // Outlet admin hanya bisa lihat attendance driver, worker, dan outlet admin lain di outlet yang sama
       const permittedRoles: Role[] = [
         Role.DRIVER,
         Role.WORKER,
         Role.OUTLET_ADMIN,
-        Role.ADMIN,
       ];
       const roleFilter = { user: { role: { in: permittedRoles } } };
 
