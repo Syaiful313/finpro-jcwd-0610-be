@@ -1096,7 +1096,11 @@ export class OrderService {
       throw new ApiError("Invalid address id", 404);
     }
 
-    const outlets = await this.prisma.outlet.findMany();
+    const outlets = await this.prisma.outlet.findMany(
+      {
+        where: { isActive: true, deletedAt: null },
+      }
+    );
 
     if (!outlets.length) {
       throw new ApiError("No outlet available", 500);

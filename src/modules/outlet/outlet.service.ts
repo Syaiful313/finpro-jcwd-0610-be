@@ -192,7 +192,7 @@ export class OutletService {
     const result = await this.prisma.$transaction(async (tx) => {
       const deletedOutlet = await tx.outlet.update({
         where: { id: outletId },
-        data: { deletedAt: new Date() },
+        data: { deletedAt: new Date(), isActive: false },
       });
 
       await tx.employee.updateMany({

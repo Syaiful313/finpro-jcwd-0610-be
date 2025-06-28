@@ -75,7 +75,7 @@ export default class App {
     this.app.use("/drivers", driverRouter.getRouter());
     this.app.use("/attendances", attendanceRouter.getRouter());
     this.app.use("/workers", workerRouter.getRouter());
-    this.app.use("/laundry-item", laundryItemRouter.getRouter());
+    this.app.use("/laundry-items", laundryItemRouter.getRouter());
     this.app.use("/notifications", notificationRouter.getRouter());
     this.app.use("/users", userRouter.getRouter());
     this.app.use("/orders", orderRouter.getRouter());
@@ -83,10 +83,7 @@ export default class App {
     this.app.use("/bypass-requests", bypassRouter.getRouter());
     this.app.use("/reports", salesReportRouter.getRouter());
     this.app.use("/payments", paymentRouter.getRouter());
-    this.app.use(
-      "/employee-performance",
-      employeePerformanceRouter.getRouter(),
-    );
+    this.app.use("/employee-performances", employeePerformanceRouter.getRouter());
   }
 
   private handleError(): void {
