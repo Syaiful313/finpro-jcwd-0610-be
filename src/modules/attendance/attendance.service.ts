@@ -41,7 +41,7 @@ export class AttendanceService {
     }
     return employee;
   }
-  //
+
   public clockIn = async (authUserId: number) => {
     return this.prisma.$transaction(async (tx) => {
       const employee = await this._getEmployeeByAuthId(authUserId, tx);
