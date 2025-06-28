@@ -38,7 +38,7 @@ export class CronService {
     });
 
     cron.schedule(
-      "58 23 * * *",
+      "58 16 * * *",
       async () => {
         try {
           const result = await this.autoClockOutEmployees();
@@ -47,7 +47,7 @@ export class CronService {
         }
       },
       {
-        timezone: "Asia/Jakarta",
+        timezone: "UTC",
       },
     );
   }
@@ -58,8 +58,7 @@ export class CronService {
       const startOfToday = new Date(today);
       startOfToday.setHours(0, 0, 0, 0);
 
-      const endOfToday = new Date(today);
-      endOfToday.setHours(23, 59, 59, 999);
+      const endOfToday = new Date();
 
       const uncloseAttendances = await tx.attendance.findMany({
         where: {
